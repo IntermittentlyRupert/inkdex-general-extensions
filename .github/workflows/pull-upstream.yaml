@@ -1,0 +1,33 @@
+name: Sync with upstream
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *" # daily at 00:00Z
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Merge upstream
+        run: |
+          echo "Configure git CLI..."
+          git config --global user.name 'IntermittentlyRupert'
+          git config --global user.email '4526480+IntermittentlyRupert@users.noreply.github.com'
+
+          echo "Fetching upstream..."
+          git remote add upstream https://github.com/inkdex/general-extensions.git
+          git fetch upstream
+
+          echo "Updating 0.9/stable with upstream..."
+          git checkout -b 0.9/stable origin/0.9/stable
+          git merge --no-edit upstream/0.9/stable
+          git push origin 0.9/stable
+
+          echo "Updating 0.9/custom with 0.9/stable..."
+          git checkout 0.9/custom
+          git merge --no-edit origin/0.9/stable
+          git push origin 0.9/custom
+
+          echo "Done."

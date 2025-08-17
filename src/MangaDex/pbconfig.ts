@@ -14,7 +14,7 @@ export default {
     SourceIntents.CHAPTER_PROVIDING,
     SourceIntents.DISCOVER_SECTION_PROVIDING,
     SourceIntents.MANAGED_COLLECTION_PROVIDING,
-    SourceIntents.PROGRESS_PROVIDING,
+    // SourceIntents.PROGRESS_PROVIDING,
     SourceIntents.SEARCH_RESULT_PROVIDING,
     SourceIntents.SETTINGS_FORM_PROVIDING,
   ],
