@@ -1,8 +1,8 @@
 {
-  "buildTime": "2025-08-17T12:50:39.806Z",
+  "buildTime": "2025-12-17T07:29:46.280Z",
   "builtWith": {
-    "toolchain": "1.0.0-alpha.53",
-    "types": "1.0.0-alpha.53"
+    "toolchain": "1.0.0-alpha.57",
+    "types": "1.0.0-alpha.57"
   },
   "repository": {
     "name": "General Extensions (0.9)",
@@ -12,7 +12,7 @@
     {
       "name": "Asura Scans",
       "description": "Extension that pulls content from asuracomic.net.",
-      "version": "1.0.0-alpha.7",
+      "version": "1.0.0-alpha.8",
       "icon": "icon.png",
       "language": "en",
       "contentRating": "SAFE",
@@ -34,7 +34,7 @@
     {
       "name": "Bato.To",
       "description": "Extension that pulls content from bato.to.",
-      "version": "1.0.0-alpha.1",
+      "version": "1.0.0-alpha.4",
       "icon": "icon.png",
       "language": "en",
       "contentRating": "ADULT",
@@ -47,43 +47,39 @@
       "badges": [],
       "developers": [
         {
-          "name": "Egwau"
-        }
-      ],
-      "id": "BatoTo"
-    },
-    {
-      "name": "ComicK",
-      "description": "Extension that pulls content from comick.io.",
-      "version": "1.0.0-alpha.17",
-      "icon": "icon.png",
-      "language": "en",
-      "contentRating": "SAFE",
-      "capabilities": [
-        4,
-        1,
-        64,
-        32
-      ],
-      "badges": [],
-      "developers": [
-        {
           "name": "Inkdex",
           "website": "https://inkdex.github.io",
           "github": "https://github.com/inkdex"
         }
       ],
-      "id": "ComicK"
+      "id": "BatoTo"
+    },
+    {
+      "name": "ComixTo",
+      "description": "Extension that pulls content from Comix.to.",
+      "version": "1.0.0-alpha.1",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "capabilities": 101,
+      "badges": [],
+      "developers": [
+        {
+          "name": "Catta1997",
+          "github": "https://github.com/Catta1997"
+        }
+      ],
+      "id": "ComixTo"
     },
     {
       "name": "MangaDemon",
       "description": "Extension that pulls content from demonicscans.org.",
-      "version": "1.0.0-alpha.1",
+      "version": "1.0.0-alpha.2",
       "icon": "icon.png",
       "language": "🇺🇸",
       "contentRating": "SAFE",
       "badges": [],
-      "capabilities": 101,
+      "capabilities": 117,
       "developers": [
         {
           "name": "samipmainali",
@@ -95,7 +91,7 @@
     {
       "name": "MangaDex",
       "description": "Extension that pulls content from mangadex.org.",
-      "version": "1.0.0-alpha.17",
+      "version": "1.0.0-alpha.18",
       "icon": "icon.png",
       "languages": "multi",
       "contentRating": "SAFE",
@@ -119,7 +115,7 @@
     {
       "name": "MangaFire",
       "description": "Extension that pulls content from mangafire.to.",
-      "version": "1.0.0-alpha.5",
+      "version": "1.0.0-alpha.7",
       "icon": "icon.png",
       "language": "multi",
       "contentRating": "SAFE",
@@ -226,7 +222,7 @@
     {
       "name": "Mgeko",
       "description": "Extension that pulls content from mgeko.cc.",
-      "version": "1.0.0-alpha.9",
+      "version": "1.0.0-alpha.13",
       "icon": "icon.png",
       "language": "en",
       "contentRating": "SAFE",
@@ -247,9 +243,30 @@
       "id": "Mgeko"
     },
     {
+      "name": "Scylla Comics",
+      "description": "Extension that pulls content from scyllacomics.xyz.",
+      "version": "1.0.0-alpha.2",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "ADULT",
+      "capabilities": [
+        16,
+        4,
+        1,
+        64
+      ],
+      "badges": [],
+      "developers": [
+        {
+          "name": "Lucifers Circle"
+        }
+      ],
+      "id": "ScyllaComics"
+    },
+    {
       "name": "Webtoon",
       "description": "Extension that pulls content from webtoons.com",
-      "version": "1.0.0-alpha.8",
+      "version": "1.0.0-alpha.9",
       "icon": "icon.png",
       "languages": "multi",
       "contentRating": "MATURE",
@@ -271,7 +288,7 @@
     {
       "name": "Weeb Central",
       "description": "Extension that pulls content from weebcentral.com.",
-      "version": "1.0.0-alpha.7",
+      "version": "1.0.0-alpha.8",
       "icon": "icon.png",
       "language": "en",
       "contentRating": "SAFE",
