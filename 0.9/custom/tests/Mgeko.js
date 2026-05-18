@@ -258,6 +258,22 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			isSelectable: props.onSelect != void 0
 		};
 	}
+	function StepperRow(id, props) {
+		return {
+			...props,
+			id,
+			type: "stepperRow",
+			isHidden: props.isHidden ?? false
+		};
+	}
+	function ToggleRow(id, props) {
+		return {
+			...props,
+			id,
+			type: "toggleRow",
+			isHidden: props.isHidden ?? false
+		};
+	}
 	function SelectRow(id, props) {
 		const selectedItemsCount = Object.keys(props.value).length;
 		return NavigationRow(id, {
@@ -15513,6 +15529,23 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 
 //#endregion
 //#region src/Mgeko/forms.ts
+	const SAFE_MODE_KEY = "safe_mode";
+	function getSafeMode() {
+		return Application.getState(SAFE_MODE_KEY) ?? true;
+	}
+	var MgekoSettingsForm = class extends Form {
+		getSections() {
+			return [Section("content", [ToggleRow("safeMode", {
+				title: "Safe Mode",
+				subtitle: "Hide NSFW content in discover and search. Enabled by default.",
+				value: getSafeMode(),
+				onValueChange: Application.Selector(this, "handleSafeModeChange")
+			})])];
+		}
+		async handleSafeModeChange(value) {
+			Application.setState(value, SAFE_MODE_KEY);
+		}
+	};
 	var MgekoAdvancedSearchForm = class extends AdvancedSearchForm {
 		constructor(searchQuery, tagSections) {
 			super();
@@ -15523,6 +15556,9 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 			_defineProperty(this, "status", void 0);
 			_defineProperty(this, "type", void 0);
 			_defineProperty(this, "isQuerySearch", void 0);
+			_defineProperty(this, "setChapterCount", void 0);
+			_defineProperty(this, "minChapters", void 0);
+			_defineProperty(this, "maxChapters", void 0);
 			for (const section of tagSections) switch (section.id) {
 				case "genres":
 					this.genreOptions = section.tags;
@@ -15539,6 +15575,9 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 			this.genres = { ...meta.genres };
 			this.status = meta.status ?? "";
 			this.type = meta.type ?? "";
+			this.setChapterCount = meta.setChapterCount ?? false;
+			this.minChapters = meta.minChapters ?? 0;
+			this.maxChapters = meta.maxChapters ?? 9995;
 		}
 		getSections() {
 			if (this.isQuerySearch) return [Section("info", [LabelRow("queryFilteringUnsupported", {
@@ -15570,7 +15609,34 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 					minItemCount: 0,
 					maxItemCount: 1,
 					onValueChange: Application.Selector(this, "handleTypeChange")
-				})])
+				})]),
+				Section("chapters", [
+					ToggleRow("setChapterCount", {
+						title: "Set Chapter Count",
+						value: this.setChapterCount,
+						onValueChange: Application.Selector(this, "handleSetChapterCountChange")
+					}),
+					StepperRow("minChapters", {
+						title: "Minimum Chapters",
+						value: this.minChapters,
+						minValue: 0,
+						maxValue: 9995,
+						stepValue: 10,
+						loopOver: false,
+						onValueChange: Application.Selector(this, "handleMinChaptersChange"),
+						isHidden: !this.setChapterCount
+					}),
+					StepperRow("maxChapters", {
+						title: "Maximum Chapters",
+						value: this.maxChapters,
+						minValue: 0,
+						maxValue: 9995,
+						stepValue: 10,
+						loopOver: false,
+						onValueChange: Application.Selector(this, "handleMaxChaptersChange"),
+						isHidden: !this.setChapterCount
+					})
+				])
 			];
 		}
 		async handleGenresChange(value) {
@@ -15581,6 +15647,16 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 		}
 		async handleTypeChange(value) {
 			this.type = value[0] ?? "";
+		}
+		async handleSetChapterCountChange(value) {
+			this.setChapterCount = value;
+			this.reloadForm();
+		}
+		async handleMinChaptersChange(value) {
+			this.minChapters = value;
+		}
+		async handleMaxChaptersChange(value) {
+			this.minChapters = value;
 		}
 		getSearchQueryMetadata() {
 			const result = {};
@@ -15626,9 +15702,10 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 		secondaryTitles.push(Application.decodeHTMLEntities($("img", "div.fixed-img").attr("alt")?.trim() ?? ""));
 		const altTitles = $("h2.alternative-title.text1row", "div.main-head").text().trim().split(",");
 		for (const title of altTitles) secondaryTitles.push(Application.decodeHTMLEntities(title));
-		const image = $("img", "div.fixed-img").attr("data-src") ?? "";
+		const thumbnailUrl = $("img", "div.fixed-img").attr("data-src") ?? "";
 		const author = $("span", "div.author").next().text().trim();
 		const description = Application.decodeHTMLEntities($(".description").first().text().trim()).split("The Summary is");
+		const synopsis = description[1] ? description[1] : description.join("");
 		const arrayTags = [];
 		for (const tag of $("li", "div.categories").toArray()) {
 			const title = $(tag).text().trim();
@@ -15639,7 +15716,7 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 				title
 			});
 		}
-		const tagSections = [{
+		const tagGroups = [{
 			id: "0",
 			title: "genres",
 			tags: arrayTags
@@ -15660,14 +15737,14 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 		return {
 			mangaId,
 			mangaInfo: {
-				thumbnailUrl: image,
-				synopsis: description[1] ? description[1] : description.join(""),
+				thumbnailUrl,
+				synopsis,
 				primaryTitle,
 				secondaryTitles,
 				contentRating: ContentRating.EVERYONE,
 				status,
 				author,
-				tagGroups: tagSections,
+				tagGroups,
 				shareUrl: new URL$1(sourceUrl).addPathComponent("manga").addPathComponent(mangaId).toString()
 			}
 		};
@@ -15676,11 +15753,11 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 		const chapters = [];
 		let sortingIndex = chapters.length - 1;
 		for (const chapter of $("li", "ul.chapter-list").toArray()) {
-			const title = Application.decodeHTMLEntities($("strong.chapter-title", chapter).text().trim());
+			let title = Application.decodeHTMLEntities($("strong.chapter-title", chapter).text().trim());
 			const chapterId = $("a", chapter).attr("href")?.replace(/\/$/, "").split("/").pop() ?? "";
 			if (!chapterId) continue;
-			const datePieces = $("time.chapter-update", chapter).attr("datetime")?.split(",") ?? [];
-			const date = new Date(String(`${datePieces[0] ?? ""}, ${datePieces[1] ?? ""}`));
+			const normalizedDateTime = ($("time.chapter-update", chapter).attr("datetime") ?? "").replace(/\bp\.m\.?/i, "PM").replace(/\ba\.m\.?/i, "AM");
+			const publishDate = new Date(normalizedDateTime);
 			const chapNumRegex = /(\d+)(?:[-.]\d+)?/.exec(title);
 			let chapNum = 0;
 			if (chapNumRegex?.[0]) {
@@ -15688,14 +15765,15 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 				if (chapRegex.includes("-")) chapRegex = chapRegex.replace("-", ".");
 				chapNum = Number(chapRegex);
 			}
+			title = isNaN(chapNum) ? title : "";
 			chapters.push({
 				chapterId,
 				sourceManga,
-				langCode: "🇬🇧",
+				langCode: "en",
 				chapNum,
-				title: isNaN(chapNum) ? title : "",
+				title,
 				volume: 0,
-				publishDate: date,
+				publishDate,
 				sortingIndex
 			});
 			sortingIndex--;
@@ -15722,20 +15800,20 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 		const manga = [];
 		const collectedIds = [];
 		for (const obj of $("article.comic-card").toArray()) {
-			const image = $("img", obj).first().attr("src") ?? "";
-			const title = $("img", obj).first().attr("alt") ?? "";
-			const id = $("a", obj).attr("href")?.replace(/\/$/, "").split("/").pop() ?? "";
+			const imageUrl = $("img", obj).first().attr("src") ?? "";
+			const title = Application.decodeHTMLEntities($("img", obj).first().attr("alt") ?? "");
+			const mangaId = $("a", obj).attr("href")?.replace(/\/$/, "").split("/").pop() ?? "";
 			const subtitle = $(".comic-card__stat--rating", obj).text().trim();
-			if (!id || !title || collectedIds.includes(id)) continue;
+			if (!mangaId || !title || collectedIds.includes(mangaId)) continue;
 			manga.push({
 				type: "simpleCarouselItem",
-				mangaId: id,
-				title: Application.decodeHTMLEntities(title),
-				imageUrl: image,
+				mangaId,
+				title,
+				imageUrl,
 				subtitle,
 				contentRating: ContentRating.EVERYONE
 			});
-			collectedIds.push(id);
+			collectedIds.push(mangaId);
 		}
 		return manga;
 	};
@@ -15790,10 +15868,10 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 	const parseOldSearch = ($, baseUrl) => {
 		const mangas = [];
 		for (const obj of $("li.novel-item", "ul.novel-list").toArray()) {
-			let image = $("img", obj).first().attr("data-src") ?? $("img", obj).first().attr("src") ?? "";
-			if (image.startsWith("/")) image = baseUrl + image;
-			const title = $("img", obj).first().attr("alt") ?? "";
-			const id = $("a", obj).attr("href")?.replace(/\/$/, "").split("/").pop() ?? "";
+			let imageUrl = $("img", obj).first().attr("data-src") ?? $("img", obj).first().attr("src") ?? "";
+			if (imageUrl.startsWith("/")) imageUrl = baseUrl + imageUrl;
+			const title = Application.decodeHTMLEntities($("img", obj).first().attr("alt") ?? "");
+			const mangaId = $("a", obj).attr("href")?.replace(/\/$/, "").split("/").pop() ?? "";
 			const getChapter = $("div.novel-stats > strong", obj).text().trim();
 			const chapNumRegex = /(\d+)(?:[-.]\d+)?/.exec(getChapter);
 			let chapNum = 0;
@@ -15803,12 +15881,12 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 				chapNum = Number(chapRegex);
 			}
 			const subtitle = chapNum ? `Chapter ${chapNum.toString()}` : "Chapter N/A";
-			if (!id || !title) continue;
+			if (!mangaId || !title) continue;
 			mangas.push({
-				mangaId: id,
-				title: Application.decodeHTMLEntities(title),
-				imageUrl: image,
-				subtitle: Application.decodeHTMLEntities(subtitle),
+				mangaId,
+				title,
+				imageUrl,
+				subtitle,
 				contentRating: ContentRating.EVERYONE
 			});
 		}
@@ -15817,20 +15895,45 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 	const parseSearch = ($, baseUrl) => {
 		const mangas = [];
 		for (const obj of $("article.comic-card").toArray()) {
-			let image = $("img", obj).first().attr("data-src") ?? $("img", obj).first().attr("src") ?? "";
-			if (image.startsWith("/")) image = baseUrl + image;
-			const title = $("img", obj).first().attr("alt") ?? "";
-			const id = $("a", obj).attr("href")?.replace(/\/$/, "").split("/").pop() ?? "";
+			let imageUrl = $("img", obj).first().attr("data-src") ?? $("img", obj).first().attr("src") ?? "";
+			if (imageUrl.startsWith("/")) imageUrl = baseUrl + imageUrl;
+			const title = Application.decodeHTMLEntities($("img", obj).first().attr("alt") ?? "");
+			const mangaId = $("a", obj).attr("href")?.replace(/\/$/, "").split("/").pop() ?? "";
 			const subtitle = $(".comic-card__stat--rating", obj).text().trim();
+			if (!mangaId || !title) continue;
 			mangas.push({
-				mangaId: id,
-				title: Application.decodeHTMLEntities(title),
-				imageUrl: image,
+				mangaId,
+				title,
+				imageUrl,
 				subtitle,
 				contentRating: ContentRating.EVERYONE
 			});
 		}
 		return mangas;
+	};
+
+//#endregion
+//#region src/Mgeko/pbconfig.ts
+	var pbconfig_default = {
+		name: "Mgeko",
+		description: "Extension that pulls content from mgeko.cc.",
+		version: "1.0.0-alpha.26",
+		icon: "icon.png",
+		language: "en",
+		contentRating: ContentRating.EVERYONE,
+		capabilities: [
+			SourceIntents.CHAPTER_PROVIDING,
+			SourceIntents.CLOUDFLARE_BYPASS_PROVIDING,
+			SourceIntents.DISCOVER_SECTION_PROVIDING,
+			SourceIntents.SEARCH_RESULT_PROVIDING,
+			SourceIntents.SETTINGS_FORM_PROVIDING
+		],
+		badges: [],
+		developers: [{
+			name: "Inkdex",
+			website: "https://inkdex.github.io",
+			github: "https://github.com/inkdex"
+		}]
 	};
 
 //#endregion
@@ -15849,6 +15952,9 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 			this.globalRateLimiter.registerInterceptor();
 			this.cookieStorageInterceptor.registerInterceptor();
 			this.mainRequestInterceptor.registerInterceptor();
+		}
+		async getSettingsForm() {
+			return new MgekoSettingsForm();
 		}
 		async getDiscoverSections() {
 			return [
@@ -15982,6 +16088,14 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 				if (status) urlBuilder.setQueryItem("status", status);
 				const type = searchMeta.type ?? "";
 				if (type) urlBuilder.setQueryItem("type", type);
+				if (searchMeta.setChapterCount ?? false) {
+					const minChapters = searchMeta.minChapters ?? 0;
+					const maxChapters = searchMeta.maxChapters ?? 9995;
+					urlBuilder.setQueryItem("min_chapters", minChapters.toString());
+					urlBuilder.setQueryItem("max_chapters", maxChapters.toString());
+				}
+				const safeMode = getSafeMode();
+				urlBuilder.setQueryItem("safe_mode", Number(safeMode).toString());
 				const request = {
 					url: urlBuilder.toString(),
 					method: "GET"
@@ -16001,8 +16115,9 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 		async getFilteredSectionItems(sort, metadata) {
 			if (metadata?.completed) return EndOfPageResults;
 			const page = metadata?.page ?? 1;
+			const safeMode = getSafeMode();
 			const request = {
-				url: new URL$1(DOMAIN).addPathComponent("browse-comics").addPathComponent("data").setQueryItem("page", page.toString()).setQueryItem("sort", sort).toString(),
+				url: new URL$1(DOMAIN).addPathComponent("browse-comics").addPathComponent("data").setQueryItem("page", page.toString()).setQueryItem("sort", sort).setQueryItem("safe_mode", Number(safeMode).toString()).toString(),
 				method: "GET"
 			};
 			const parsedData = await this.fetchApi(request);
@@ -16047,29 +16162,6 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 		}
 	};
 	const Mgeko = new MgekoExtension();
-
-//#endregion
-//#region src/Mgeko/pbconfig.ts
-	var pbconfig_default = {
-		name: "Mgeko",
-		description: "Extension that pulls content from mgeko.cc.",
-		version: "1.0.0-alpha.25",
-		icon: "icon.png",
-		language: "en",
-		contentRating: ContentRating.EVERYONE,
-		capabilities: [
-			SourceIntents.CHAPTER_PROVIDING,
-			SourceIntents.CLOUDFLARE_BYPASS_PROVIDING,
-			SourceIntents.DISCOVER_SECTION_PROVIDING,
-			SourceIntents.SEARCH_RESULT_PROVIDING
-		],
-		badges: [],
-		developers: [{
-			name: "Inkdex",
-			website: "https://inkdex.github.io",
-			github: "https://github.com/inkdex"
-		}]
-	};
 
 //#endregion
 //#region node_modules/chai/index.js
