@@ -4,15 +4,14 @@
 import { ContentRating, SourceIntents, type ExtensionInfo } from "@paperback/types";
 
 export default {
-  name: "Comix",
-  description: "Extension that pulls content from Comix.to.",
-  version: "1.0.0-alpha.25",
+  name: "Punk Records",
+  description: "Extension pour récupérer le contenu de punkrecordz.com.",
+  version: "1.0.0-alpha.1",
   icon: "icon.png",
-  language: "en",
+  language: "fr",
   contentRating: ContentRating.EVERYONE,
   capabilities: [
     SourceIntents.CHAPTER_PROVIDING,
-    SourceIntents.CLOUDFLARE_BYPASS_PROVIDING,
     SourceIntents.DISCOVER_SECTION_PROVIDING,
     SourceIntents.SEARCH_RESULT_PROVIDING,
     SourceIntents.SETTINGS_FORM_PROVIDING,
@@ -20,8 +19,8 @@ export default {
   badges: [],
   developers: [
     {
-      name: "Catta1997",
-      github: "https://github.com/Catta1997",
+      name: "Finebouche",
+      github: "https://github.com/Finebouche",
     },
   ],
 } satisfies ExtensionInfo;
