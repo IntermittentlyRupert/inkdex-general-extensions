@@ -108,13 +108,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	};
 
 //#endregion
-//#region node_modules/@paperback/types/lib/impl/Selector.js
-	function closureSelector(base, closureId, closure) {
-		base["__closure_selector-" + closureId] = closure;
-		return Application.Selector(base, "__closure_selector-" + closureId);
-	}
-
-//#endregion
 //#region node_modules/@paperback/types/lib/impl/SettingsUI/FormSection.js
 	function Section(params, items) {
 		let info;
@@ -129,138 +122,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			allowReorder: false
 		};
 	}
-	function EditSection(id, params) {
-		return {
-			id,
-			type: "listSection",
-			header: params.header,
-			footer: params.footer,
-			allowAddition: params.onAddition != void 0 && params.allowAddition == true,
-			allowDeletion: params.onDeletion != void 0 && params.allowDeletion == true,
-			allowReorder: params.onReorder != void 0 && params.allowReorder == true,
-			onAddition: params.onAddition,
-			onDeletion: params.onDeletion,
-			onReorder: params.onReorder,
-			items: params.items.filter((x) => x)
-		};
-	}
-	function FlowSection(params, items) {
-		let info;
-		if (typeof params === "string") info = { id: params };
-		else info = params;
-		return {
-			type: "flowSection",
-			...info,
-			items: items.filter((x) => x)
-		};
-	}
-	function SelectSection(form, params) {
-		if (params.maxItemCount < 1) throw new Error(`[${params.id}] maxItemCount must not be less than one`);
-		if (params.minItemCount < 0) throw new Error(`[${params.id}] minItemCount must not be less than zero`);
-		if (params.minItemCount >= params.maxItemCount && params.maxItemCount > 1) throw new Error(`[${params.id}] minItemCount must be less than maxItemCount, or both must be one`);
-		if (params.value.length < params.minItemCount) throw new Error(`[${params.id}] value count must not be less than minItemCount`);
-		if (!params.value.every((item) => params.items.some((option) => option.id === item))) throw new Error(`[${params.id}] All provided values must be inside items`);
-		const selectedOptionsLength = Object.keys(params.value).length;
-		return (params.layout == "flow" ? FlowSection : Section)({
-			id: params.id,
-			header: params.header,
-			footer: params.footer
-		}, params.items.map((item) => {
-			const selectedIndex = params.value.indexOf(item.id);
-			const isSelected = selectedIndex !== -1;
-			return LabelRow(item.id, {
-				title: item.title,
-				value: isSelected ? {
-					symbol: "checkmark",
-					style: "success"
-				} : void 0,
-				onSelect: closureSelector(form, `__select_${params.id}#${item.id}`, async () => {
-					if (isSelected) {
-						if (selectedOptionsLength > params.minItemCount) params.value.splice(selectedIndex, 1);
-					} else if (params.maxItemCount == 1) params.value.splice(0, params.value.length, item.id);
-					else if (selectedOptionsLength < params.maxItemCount) params.value.push(item.id);
-					else return;
-					if (params.onValueChange) await Application.SelectorRegistry.selector(params.onValueChange)();
-					form.reloadForm();
-				})
-			});
-		}));
-	}
-	function TriStateSelectSection(form, params) {
-		const selectedOptionsLength = Object.keys(params.value).length;
-		return (params.layout == "flow" ? FlowSection : Section)({
-			id: params.id,
-			header: params.header,
-			footer: params.footer
-		}, params.items.map((item) => {
-			const currentState = params.value[item.id];
-			let value;
-			let style;
-			switch (currentState) {
-				case "included":
-					if (params.layout == "flow") {
-						style = "success";
-						value = void 0;
-					} else {
-						style = void 0;
-						value = {
-							symbol: "checkmark",
-							style: "success"
-						};
-					}
-					break;
-				case "excluded":
-					if (params.layout == "flow") {
-						style = "error";
-						value = void 0;
-					} else {
-						style = void 0;
-						value = {
-							symbol: "xmark",
-							style: "error"
-						};
-					}
-					break;
-				default:
-					value = void 0;
-					style = void 0;
-					break;
-			}
-			return LabelRow(item.id, {
-				style,
-				title: item.title,
-				value,
-				onSelect: closureSelector(form, `__multiselect_${params.id}#${item.id}`, async () => {
-					let nextState;
-					const canSelect = !params.maximum || selectedOptionsLength < params.maximum;
-					const canDeselect = params.allowEmptySelection && selectedOptionsLength == 1 || selectedOptionsLength > 1;
-					switch (currentState) {
-						case "included":
-							if (params.allowExclusion) {
-								nextState = "excluded";
-								break;
-							}
-							if (canDeselect) {
-								nextState = void 0;
-								break;
-							} else return;
-						case "excluded": if (canDeselect) {
-							nextState = void 0;
-							break;
-						} else return;
-						case void 0: if (canSelect) {
-							nextState = "included";
-							break;
-						} else return;
-					}
-					if (nextState == void 0) delete params.value[item.id];
-					else params.value[item.id] = nextState;
-					if (params.onValueChange) await Application.SelectorRegistry.selector(params.onValueChange)();
-					form.reloadForm();
-				})
-			});
-		}));
-	}
 
 //#endregion
 //#region node_modules/@paperback/types/lib/impl/SettingsUI/FormItemElement.js
@@ -273,14 +134,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			isSelectable: props.onSelect != void 0
 		};
 	}
-	function StepperRow(id, props) {
-		return {
-			...props,
-			id,
-			type: "stepperRow",
-			isHidden: props.isHidden ?? false
-		};
-	}
 	function ToggleRow(id, props) {
 		return {
 			...props,
@@ -289,109 +142,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			isHidden: props.isHidden ?? false
 		};
 	}
-	function SelectRow(id, props) {
-		const selectedItemsCount = Object.keys(props.value).length;
-		return NavigationRow(id, {
-			form: new SelectForm(props.title, props),
-			title: props.title,
-			subtitle: props.subtitle,
-			value: selectedItemsCount == 1 ? `${("items" in props ? props.items.find((x) => x.id == props.value[0])?.title : props.options.find((x) => x.id == props.value[0])?.title) ?? "1 item"}` : `${Object.keys(props.value).length} items`,
-			isHidden: props.isHidden
-		});
-	}
-	function TriStateSelectRow(id, props) {
-		return NavigationRow(id, {
-			form: new TriStateSelectForm(props.title, props),
-			title: props.title,
-			subtitle: props.subtitle,
-			value: `${Object.keys(props.value).length} items`,
-			isHidden: props.isHidden
-		});
-	}
-	function ButtonRow(id, props) {
-		return {
-			...props,
-			id,
-			type: "buttonRow",
-			isHidden: props.isHidden ?? false
-		};
-	}
-	function NavigationRow(id, props) {
-		return {
-			...props,
-			id,
-			type: "navigationRow",
-			isHidden: props.isHidden ?? false
-		};
-	}
-	var SelectForm = class extends Form {
-		constructor(title, params) {
-			super();
-			_defineProperty(this, "title", void 0);
-			_defineProperty(this, "params", void 0);
-			_defineProperty(this, "states", []);
-			_defineProperty(this, "requiresExplicitSubmission", true);
-			this.title = title;
-			this.params = params;
-			this.states = [...params.value];
-		}
-		getSections() {
-			return [SelectSection(this, {
-				id: "select",
-				value: this.states,
-				layout: "layout" in this.params ? this.params.layout : "list",
-				items: "items" in this.params ? this.params.items : this.params.options,
-				minItemCount: this.params.minItemCount,
-				maxItemCount: this.params.maxItemCount,
-				isHidden: this.params.isHidden
-			})];
-		}
-		async formDidSubmit() {
-			await Application.SelectorRegistry.selector(this.params.onValueChange)(this.states);
-		}
-	};
-	var TriStateSelectForm = class extends Form {
-		constructor(title, params) {
-			super();
-			_defineProperty(this, "title", void 0);
-			_defineProperty(this, "params", void 0);
-			_defineProperty(this, "states", {});
-			_defineProperty(this, "requiresExplicitSubmission", true);
-			this.title = title;
-			this.params = params;
-			this.states = { ...params.value };
-		}
-		getSections() {
-			return [TriStateSelectSection(this, {
-				id: "multiselect",
-				value: this.states,
-				items: this.params.items,
-				allowExclusion: this.params.allowExclusion,
-				allowEmptySelection: this.params.allowEmptySelection,
-				maximum: this.params.maximum,
-				layout: this.params.layout
-			})];
-		}
-		async formDidSubmit() {
-			await Application.SelectorRegistry.selector(this.params.onValueChange)(this.states);
-		}
-	};
-
-//#endregion
-//#region node_modules/@paperback/types/lib/impl/SettingsUI/FormConfirmationError.js
-/**
-	* The app catches this request and displays a banner at the top that initiates cloudflare bypass
-	*
-	* NOTE: You must have {@link SourceIntents.CLOUDFLARE_BYPASS_PROVIDING} for this to work
-	*/
-	var FormConfirmationError = class extends Error {
-		constructor(onConfirmation, message) {
-			super(message);
-			_defineProperty(this, "onConfirmation", void 0);
-			_defineProperty(this, "type", "confirmationError");
-			this.onConfirmation = onConfirmation;
-		}
-	};
 
 //#endregion
 //#region node_modules/@paperback/types/lib/impl/interfaces/ChapterProviding.js
@@ -404,21 +154,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	function implementsSearchResultsProviding(extension) {
 		return hasPropertiesOf(["getSearchResults"], extension);
 	}
-	var AdvancedSearchForm = class extends Form {
-		constructor(..._args) {
-			super(..._args);
-			_defineProperty(
-				this,
-				/**
-				* This is always true
-				*/
-				"requiresExplicitSubmission",
-				true
-			);
-		}
-		async formDidSubmit() {}
-		formDidCancel() {}
-	};
 
 //#endregion
 //#region node_modules/@paperback/types/lib/impl/interfaces/index.js
@@ -496,22 +231,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					this.promise = Application.sleep(sleepTime);
 				}
 			}
-		}
-	};
-
-//#endregion
-//#region node_modules/@paperback/types/lib/impl/CloudflareError.js
-/**
-	* The app catches this request and displays a banner at the top that initiates cloudflare bypass
-	*
-	* NOTE: You must have {@link SourceIntents.CLOUDFLARE_BYPASS_PROVIDING} for this to work
-	*/
-	var CloudflareError = class extends Error {
-		constructor(resolutionRequest, message = "Cloudflare bypass is required") {
-			super(message);
-			_defineProperty(this, "resolutionRequest", void 0);
-			_defineProperty(this, "type", "cloudflareError");
-			this.resolutionRequest = resolutionRequest;
 		}
 	};
 
@@ -749,264 +468,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	};
 
 //#endregion
-//#region node_modules/@paperback/types/lib/impl/CookieStorageInterceptor.js
-	const cookieStateKey = "cookie_store_cookies";
-	var CookieStorageInterceptor = class extends PaperbackInterceptor {
-		get cookies() {
-			return Object.freeze(Object.values(this._cookies));
-		}
-		set cookies(newValue) {
-			const cookies = {};
-			for (const cookie of newValue) {
-				if (this.isCookieExpired(cookie)) continue;
-				cookies[this.cookieIdentifier(cookie)] = cookie;
-			}
-			this._cookies = cookies;
-			this.saveCookiesToStorage();
-		}
-		constructor(options) {
-			super("cookie_store");
-			_defineProperty(this, "options", void 0);
-			_defineProperty(this, "_cookies", {});
-			this.options = options;
-			this.loadCookiesFromStorage();
-		}
-		async interceptRequest(request) {
-			request.cookies = {
-				...request.cookies ?? {},
-				...this.cookiesForUrl(request.url).reduce((v, c) => {
-					v[c.name] = c.value;
-					return v;
-				}, {})
-			};
-			return request;
-		}
-		async interceptResponse(request, response, data) {
-			const cookies = this._cookies;
-			for (const cookie of response.cookies) {
-				const identifier = this.cookieIdentifier(cookie);
-				if (this.isCookieExpired(cookie)) {
-					delete cookies[identifier];
-					continue;
-				}
-				cookies[identifier] = cookie;
-			}
-			this._cookies = cookies;
-			this.saveCookiesToStorage();
-			return data;
-		}
-		setCookie(cookie) {
-			if (this.isCookieExpired(cookie)) return;
-			this._cookies[this.cookieIdentifier(cookie)] = cookie;
-			this.saveCookiesToStorage();
-		}
-		deleteCookie(cookie) {
-			delete this._cookies[this.cookieIdentifier(cookie)];
-		}
-		cookiesForUrl(urlString) {
-			const url = new URL$1(urlString);
-			const hostname = url.hostname;
-			if (!hostname) return [];
-			const matchedCookies = {};
-			const pathname = url.path.startsWith("/") ? url.path : `/${url.path}`;
-			const splitHostname = hostname.split(".");
-			const splitUrlPath = pathname.split("/");
-			splitUrlPath.shift();
-			const cookies = this.cookies;
-			for (const cookie of cookies) {
-				if (this.isCookieExpired(cookie)) {
-					delete this._cookies[this.cookieIdentifier(cookie)];
-					continue;
-				}
-				const splitCookieDomain = this.cookieSanitizedDomain(cookie).split(".");
-				if (splitHostname.length < splitCookieDomain.length || splitCookieDomain.length == 0) continue;
-				let cookieDomainMatches = true;
-				for (let i = 0; i < splitCookieDomain.length; i++) {
-					const splitCookieIndex = splitCookieDomain.length - 1 - i;
-					const splitHostnameIndex = splitHostname.length - 1 - i;
-					if (splitCookieDomain[splitCookieIndex] != splitHostname[splitHostnameIndex]) {
-						cookieDomainMatches = false;
-						break;
-					}
-				}
-				if (!cookieDomainMatches) continue;
-				const cookiePath = this.cookieSanitizedPath(cookie);
-				const splitCookiePath = cookiePath.split("/");
-				splitCookiePath.shift();
-				let pathMatches = 0;
-				if (pathname === cookiePath) pathMatches = Number.MAX_SAFE_INTEGER;
-				else if (splitCookiePath.length === 0 || cookiePath === "/") pathMatches = 1;
-				else if (pathname.startsWith(cookiePath) && splitUrlPath.length >= splitCookiePath.length) for (let i = 0; i < splitCookiePath.length; i++) if (splitCookiePath[i] === splitUrlPath[i]) pathMatches += 1;
-				else break;
-				if (pathMatches <= 0) continue;
-				if ((matchedCookies[cookie.name]?.pathMatches ?? 0) < pathMatches) matchedCookies[cookie.name] = {
-					cookie,
-					pathMatches
-				};
-			}
-			return Object.values(matchedCookies).map((x) => x.cookie);
-		}
-		cookieIdentifier(cookie) {
-			return `${cookie.name}-${this.cookieSanitizedDomain(cookie)}-${this.cookieSanitizedPath(cookie)}`;
-		}
-		cookieSanitizedPath(cookie) {
-			return cookie.path?.startsWith("/") ? cookie.path : "/" + (cookie.path ?? "");
-		}
-		cookieSanitizedDomain(cookie) {
-			return cookie.domain.replace(/^(www)?\.?/gi, "").toLowerCase();
-		}
-		isCookieExpired(cookie) {
-			if (cookie.expires && cookie.expires.getTime() <= Date.now()) return true;
-			else return false;
-		}
-		loadCookiesFromStorage() {
-			if (this.options.storage == "memory") return;
-			const cookieData = Application.getState(cookieStateKey);
-			if (!cookieData) {
-				this._cookies = {};
-				return;
-			}
-			const cookies = {};
-			for (const cookie of cookieData) {
-				if (!cookie.expires || this.isCookieExpired(cookie)) continue;
-				cookies[this.cookieIdentifier(cookie)] = cookie;
-			}
-			this._cookies = cookies;
-		}
-		saveCookiesToStorage() {
-			if (this.options.storage == "memory") return;
-			Application.setState(this.cookies.filter((x) => x.expires), cookieStateKey);
-		}
-	};
-	/**
-	*
-	*  Test cases for testing cookies are behaving as expected
-	*
-	
-	function assert(a: boolean, msg: string) {
-	if(!a) {
-	throw msg
-	}
-	}
-	
-	(function runTests() {
-	const cookieStorage = new CookieStorageInterceptor();
-	const now = Date.now();
-	
-	// Test 1: Basic set and retrieval
-	const cookie1: Cookie = {
-	name: "sessionId",
-	value: "abc123",
-	domain: "example.com",
-	path: "/",
-	expires: new Date(now + 10000) // expires in 10 seconds
-	};
-	cookieStorage.setCookie(cookie1);
-	let cookies = cookieStorage.cookiesForUrl("http://example.com/");
-	assert(cookies.length === 1, "Should retrieve one cookie for example.com root");
-	
-	// Test 2: Domain matching with subdomain (RFC 6265: domain-match)
-	const cookie2: Cookie = {
-	name: "user",
-	value: "john",
-	domain: "example.com",
-	path: "/",
-	expires: new Date(now + 10000)
-	};
-	cookieStorage.setCookie(cookie2);
-	cookies = cookieStorage.cookiesForUrl("http://www.example.com/");
-	assert(
-	cookies.some(c => c.name === "user"),
-	"Cookie with domain example.com should match www.example.com"
-	);
-	
-	// Test 3: Path matching
-	const cookie3: Cookie = {
-	name: "pref",
-	value: "dark",
-	domain: "example.com",
-	path: "/docs",
-	expires: new Date(now + 10000)
-	};
-	cookieStorage.setCookie(cookie3);
-	cookies = cookieStorage.cookiesForUrl("http://example.com/docs/index.html");
-	assert(
-	cookies.some(c => c.name === "pref"),
-	"Cookie with path /docs should match /docs/index.html"
-	);
-	cookies = cookieStorage.cookiesForUrl("http://example.com/about");
-	assert(
-	!cookies.some(c => c.name === "pref"),
-	"Cookie with path /docs should not match /about"
-	);
-	
-	// Test 4: Expired cookie should not be stored or returned
-	const cookie4: Cookie = {
-	name: "expired",
-	value: "old",
-	domain: "example.com",
-	path: "/",
-	expires: new Date(now - 10000) // expired 10 seconds ago
-	};
-	cookieStorage.setCookie(cookie4);
-	cookies = cookieStorage.cookiesForUrl("http://example.com/");
-	assert(
-	!cookies.some(c => c.name === "expired"),
-	"Expired cookie should not be returned"
-	);
-	
-	// Test 5: Cookie overwriting based on path specificity
-	// Cookie with name "id" and path "/" (less specific)
-	const cookieA: Cookie = {
-	name: "id",
-	value: "A",
-	domain: "example.com",
-	path: "/",
-	expires: new Date(now + 10000)
-	};
-	// Cookie with the same name but a more specific path "/docs"
-	const cookieB: Cookie = {
-	name: "id",
-	value: "B",
-	domain: "example.com",
-	path: "/docs",
-	expires: new Date(now + 10000)
-	};
-	cookieStorage.setCookie(cookieA);
-	cookieStorage.setCookie(cookieB);
-	cookies = cookieStorage.cookiesForUrl("http://example.com/docs");
-	const cookieId = cookies.find(c => c.name === "id");
-	assert(
-	cookieId?.value === "B",
-	"More specific cookie should be returned for URL /docs"
-	);
-	
-	// Test 6: Deleting a cookie
-	cookieStorage.deleteCookie(cookieB);
-	cookies = cookieStorage.cookiesForUrl("http://example.com/docs");
-	const cookieIdAfterDelete = cookies.find(c => c.name === "id");
-	assert(
-	cookieIdAfterDelete?.value === "A",
-	"After deletion of the specific cookie, the less specific cookie should be returned"
-	);
-	
-	// Test 7: Using the cookies setter (expired cookies filtered out)
-	cookieStorage.cookies = [cookie1, cookie4]; // cookie4 is expired
-	const storedCookies = cookieStorage.cookies;
-	assert(
-	storedCookies.some(c => c.name === "sessionId"),
-	"sessionId cookie should be stored via setter"
-	);
-	assert(
-	!storedCookies.some(c => c.name === "expired"),
-	"Expired cookie should be filtered out in the setter"
-	);
-	
-	console.log("All tests passed successfully.");
-	})();
-	*/
-
-//#endregion
 //#region node_modules/@paperback/types/lib/impl/SourceInfo.js
 	var SourceIntents;
 	(function(SourceIntents) {
@@ -1088,651 +549,50 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	});
 
 //#endregion
-//#region src/Comix/models.ts
-	const DOMAIN = "https://comix.to";
-	const API = `${DOMAIN}/api/v1`;
-	const NO_IMAGE = `${DOMAIN}/images/no-poster.png`;
+//#region src/PunkRecords/models.ts
+	const DOMAIN = "https://punkrecordz.com";
+	const API_DOMAIN = "https://api.punkrecordz.com";
+	const PUNK_RECORDS_SECTIONS = {
+		LATEST: "latest",
+		CATALOGUE: "catalogue"
+	};
+	const PUNK_RECORDS_STATE_KEYS = { ShowCatalogueOnHome: "punk_records_show_catalogue_on_home" };
 
 //#endregion
-//#region src/Comix/utils/filter.ts
-	var ComixFilter = class {
-		constructor() {
-			_defineProperty(this, "genres", []);
-			_defineProperty(this, "themes", []);
-			_defineProperty(this, "demographic", []);
-			_defineProperty(this, "formats", []);
-			_defineProperty(this, "contentType", [
-				{
-					id: "manga",
-					value: "Manga"
-				},
-				{
-					id: "manhwa",
-					value: "Manhwa"
-				},
-				{
-					id: "manhua",
-					value: "Manhua"
-				},
-				{
-					id: "other",
-					value: "Other"
-				}
-			]);
-			_defineProperty(this, "publication_status", [
-				{
-					id: "finished",
-					value: "Finished"
-				},
-				{
-					id: "releasing",
-					value: "Releasing"
-				},
-				{
-					id: "on_hiatus",
-					value: "On Hiatus"
-				},
-				{
-					id: "discontinued",
-					value: "Discontinued"
-				},
-				{
-					id: "not_yet_released",
-					value: "Not Yet Released"
-				}
-			]);
-			_defineProperty(this, "sectionLimit", [
-				{
-					id: "1",
-					value: "Day"
-				},
-				{
-					id: "7",
-					value: "Week"
-				},
-				{
-					id: "30",
-					value: "1 Month"
-				},
-				{
-					id: "90",
-					value: "3 Month"
-				},
-				{
-					id: "180",
-					value: "6 Month"
-				},
-				{
-					id: "365",
-					value: "1 Year"
-				}
-			]);
-		}
-		getHiddenGenresSettings() {
-			return Application.getState("hide_genres") ?? [];
-		}
-		getHiddenThemesSettings() {
-			return Application.getState("hide_themes") ?? [];
-		}
-		getHiddenDemogSettings() {
-			return Application.getState("hide_demog") ?? [];
-		}
-		getShowOnlySettings() {
-			return Application.getState("show_only") ?? [];
-		}
-		getLimitSettings() {
-			return Application.getState("limit") ?? ["7"];
-		}
-		getYearSettings() {
-			return Application.getState("year_settings") ?? (/* @__PURE__ */ new Date()).getFullYear() - 1;
-		}
-		getSectionTimesType() {
-			return Application.getState("yearTimes") ?? true;
-		}
-		/**
-		* @return true if horizontal, false if table
-		*/
-		getChapterSectionDiffType() {
-			return Application.getState("chapterSection") ?? false;
-		}
-		/**
-		* @return true if horizontal, false if table
-		*/
-		getTrendingSectionDiffType() {
-			return Application.getState("trendingSection") ?? true;
-		}
-		/**
-		* @return true if horizontal, false if table
-		*/
-		getRecentSectionDiffType() {
-			return Application.getState("recentSection") ?? true;
-		}
-		setGenreFilter(newValue) {
-			this.genres = [...newValue].sort((a, b) => a.value.toLowerCase().localeCompare(b.value.toLowerCase()));
-			Application.setState(JSON.stringify(newValue), "genre");
-		}
-		setDemographicFilter(newValue) {
-			this.demographic = [...newValue].sort((a, b) => a.value.toLowerCase().localeCompare(b.value.toLowerCase()));
-			Application.setState(JSON.stringify(newValue), "demographic");
-		}
-		setFormatsFilter(newValue) {
-			this.formats = [...newValue].sort((a, b) => a.value.toLowerCase().localeCompare(b.value.toLowerCase()));
-			Application.setState(JSON.stringify(newValue), "format");
-		}
-	};
-	const discoverySections = [
-		{
-			id: "popular",
-			title: "Popular"
-		},
-		{
-			id: "follow",
-			title: "Most Follows New Comics"
-		},
-		{
-			id: "recent",
-			title: "Recent Comics"
-		},
-		{
-			id: "trending_manga",
-			title: "Trending Manga"
-		},
-		{
-			id: "trending_wt",
-			title: "Trending WebToons"
-		},
-		{
-			id: "updatesHot",
-			title: "Latest Updates HOT"
-		},
-		{
-			id: "updatesNew",
-			title: "Latest Updates NEW"
-		},
-		{
-			id: "completed",
-			title: "Completed"
-		},
-		{
-			id: "genresSection",
-			title: "Best of Genres"
-		}
-	];
-
-//#endregion
-//#region src/Comix/forms/search.ts
-	var ComixAdvancedSearchForm = class extends AdvancedSearchForm {
-		constructor(searchQuery, filter) {
-			super();
-			this.filter = filter;
-			_defineProperty(this, "searchMetadata", void 0);
-			_defineProperty(this, "mode", void 0);
-			if (searchQuery.metadata !== void 0) this.searchMetadata = searchQuery.metadata;
-			else this.searchMetadata = {
-				genres: {},
-				themes: {},
-				types: {},
-				demographic: {},
-				status: {},
-				formats: {},
-				mode: []
-			};
-			this.mode = this.searchMetadata.mode ? this.searchMetadata.mode : ["and"];
-		}
-		getSearchQueryMetadata() {
-			if (this.mode) this.searchMetadata.mode = this.mode;
-			return this.searchMetadata;
-		}
+//#region src/PunkRecords/forms.ts
+	var PunkRecordsSettingsForm = class extends Form {
 		getSections() {
-			return [
-				Section("genres", [TriStateSelectRow("genres", {
-					title: "Genres",
-					layout: "list",
-					value: this.searchMetadata.genres ?? {},
-					items: this.filter.genres.map((x) => ({
-						id: x.id,
-						title: x.value
-					})),
-					allowExclusion: true,
-					allowEmptySelection: true,
-					onValueChange: Application.Selector(this, "handleGenresChange")
-				})]),
-				Section("demographic", [TriStateSelectRow("demographic", {
-					title: "Demographic",
-					layout: "list",
-					value: this.searchMetadata.demographic ?? {},
-					allowEmptySelection: true,
-					allowExclusion: true,
-					items: this.filter.demographic.map((x) => ({
-						id: x.id,
-						title: x.value
-					})),
-					onValueChange: Application.Selector(this, "handleDemogChange")
-				})]),
-				Section("status", [TriStateSelectRow("status", {
-					title: "Status",
-					layout: "list",
-					value: this.searchMetadata.status ?? {},
-					allowEmptySelection: true,
-					allowExclusion: false,
-					items: this.filter.publication_status.map((x) => ({
-						id: x.id,
-						title: x.value
-					})),
-					onValueChange: Application.Selector(this, "handleStatusChange")
-				})]),
-				Section("types", [TriStateSelectRow("types", {
-					title: "Types",
-					layout: "list",
-					value: this.searchMetadata.types ?? {},
-					allowEmptySelection: true,
-					allowExclusion: false,
-					items: this.filter.contentType.map((x) => ({
-						id: x.id,
-						title: x.value
-					})),
-					onValueChange: Application.Selector(this, "handleTypesChange")
-				})]),
-				Section("formats", [TriStateSelectRow("formats", {
-					title: "Formats",
-					layout: "list",
-					value: this.searchMetadata.formats ?? {},
-					allowEmptySelection: true,
-					allowExclusion: false,
-					items: this.filter.formats.map((x) => ({
-						id: x.id,
-						title: x.value
-					})),
-					onValueChange: Application.Selector(this, "handleFormatsChange")
-				})]),
-				SelectSection(this, {
-					id: "mode",
-					layout: "flow",
-					value: this.mode ?? ["and"],
-					items: [{
-						id: "and",
-						title: "AND"
-					}, {
-						id: "or",
-						title: "OR"
-					}],
-					minItemCount: 1,
-					maxItemCount: 1
-				}),
-				Section("chapter_min", [StepperRow("chapter_min", {
-					title: "Minimum Chapters",
-					value: this.searchMetadata.minChap ?? 0,
-					minValue: 1,
-					maxValue: 1e4,
-					stepValue: 1,
-					loopOver: false,
-					onValueChange: Application.Selector(this, "handleMinChapters")
-				})])
-			];
-		}
-		async handleGenresChange(value) {
-			this.searchMetadata.genres = value;
-		}
-		async handleDemogChange(value) {
-			this.searchMetadata.demographic = value;
-		}
-		async handleStatusChange(value) {
-			this.searchMetadata.status = value;
-		}
-		async handleTypesChange(value) {
-			this.searchMetadata.types = value;
-		}
-		async handleFormatsChange(value) {
-			this.searchMetadata.formats = value;
-		}
-		async handleMinChapters(value) {
-			this.searchMetadata.minChap = value;
-		}
-	};
-
-//#endregion
-//#region src/Comix/forms/settings.ts
-	function getDeletedDiscoverySections() {
-		return Application.getState("deleted_sections") ?? [];
-	}
-	async function setDiscoverySections(newValue) {
-		Application.setState(newValue, "sections");
-	}
-	async function setDeletedDiscoverySections(newValue) {
-		Application.setState(newValue, "deleted_sections");
-	}
-	function getDiscoverySectionsOrder() {
-		return Application.getState("sections") ?? discoverySections;
-	}
-	var BaseSettings = class extends Form {
-		async updateValue(value, id) {
-			Application.setState(value, id);
-			Application.invalidateDiscoverSections();
-			this.reloadForm();
-		}
-	};
-	var EditableListTestForm = class extends Form {
-		getSections() {
-			const onReorderSelectorId = Application.Selector(this, "rowDidReorder");
-			const onDeletionSelectorId = Application.Selector(this, "rowDidDelete");
-			return [
-				{
-					...EditSection("edit", {
-						id: "edit",
-						header: "Section order",
-						footer: "Long press to reorder, swipe to hide",
-						items: getDiscoverySectionsOrder().map((item) => this.itemRow(item))
-					}),
-					allowDeletion: true,
-					allowReorder: true,
-					onReorder: onReorderSelectorId,
-					onDeletion: onDeletionSelectorId
-				},
-				...getDeletedDiscoverySections().length > 0 ? [new AddSectionSelect().getDeletedSections()] : [],
-				Section("status", [ButtonRow("reset", {
-					title: "Reset all Sections",
-					isHidden: getDeletedDiscoverySections().length == 0,
-					onSelect: Application.Selector(this, "resetFiltersDialog")
-				})])
-			];
-		}
-		async resetFiltersDialog() {
-			throw new FormConfirmationError(Application.Selector(this, "handleLimitStatusChangeReset"), "Do you want to restore all deleted sections?");
-		}
-		async handleLimitStatusChangeReset() {
-			await setDiscoverySections(discoverySections);
-			await setDeletedDiscoverySections([]);
-			this.reloadForm();
-		}
-		itemRow(item) {
-			return LabelRow(item.id, { title: item.title });
-		}
-		async rowDidDelete(index) {
-			const items = getDeletedDiscoverySections();
-			const sections = getDiscoverySectionsOrder();
-			sections.splice(index, 1).forEach((item) => {
-				items.push(item);
-			});
-			await setDeletedDiscoverySections(items);
-			await setDiscoverySections(sections);
-			this.reloadForm();
-		}
-		async rowDidReorder(sourceIndex, destinationIndex) {
-			const sections = getDiscoverySectionsOrder();
-			const [item] = sections.splice(sourceIndex, 1);
-			if (item) sections.splice(destinationIndex, 0, item);
-			await setDiscoverySections(sections);
-			this.reloadForm();
-			Application.invalidateDiscoverSections();
-		}
-	};
-	var AddSectionSelect = class {
-		constructor() {
-			_defineProperty(this, "onSelectLabelProxy", new Proxy(this, {
-				has(target, p) {
-					if (typeof p == "string" && p.startsWith("onSelect_")) return true;
-					else return Object.hasOwn(target, p);
-				},
-				get(target, p) {
-					if (typeof p == "string" && p.startsWith("onSelect_")) {
-						const rowId = p.slice(9);
-						return async () => {
-							await target["onSelect"](rowId);
-						};
-					} else return target[p];
-				}
-			}));
-			_defineProperty(this, "deletedForms", getDeletedDiscoverySections());
-		}
-		getDeletedSections() {
-			return Section({
-				id: "addSectionSelect",
-				footer: "Tap to restore"
-			}, this.deletedForms.flatMap((item) => LabelRow(item.id, {
-				title: item.title,
-				onSelect: Application.Selector(this.onSelectLabelProxy, "onSelect_" + item.id)
-			})));
-		}
-		async onSelect(rowId) {
-			const sections = getDiscoverySectionsOrder();
-			const selectedDeletedItems = this.deletedForms.filter((item) => item.id === rowId);
-			sections.push(selectedDeletedItems[0]);
-			await setDiscoverySections(sections);
-			await setDeletedDiscoverySections(this.deletedForms.filter((item) => item.id !== rowId));
-			this.deletedForms = getDeletedDiscoverySections();
-		}
-	};
-	var MainSettings = class extends BaseSettings {
-		constructor(filter, onRefresh) {
-			super();
-			this.filter = filter;
-			this.onRefresh = onRefresh;
-		}
-		getSections() {
-			return [Section("settings", [NavigationRow("Contents", {
-				title: "Contents",
-				subtitle: "Contents Tags Settings",
-				form: new FilterSettings(this.filter)
-			}), ButtonRow("reload_genres", {
-				title: "Reload all Filters",
-				onSelect: Application.Selector(this, "refreshFilters")
-			})]), Section("home_sections", [NavigationRow("HomeSections", {
-				title: "Home Sections",
-				subtitle: "Home Sections Settings",
-				form: new SectionSettings(this.filter)
+			return [Section("about", [LabelRow("about-row", {
+				title: "Punk Records",
+				subtitle: "Ajustez l'affichage de l'extension dans Paperback.",
+				value: "punkrecordz.com"
+			})]), Section("browse", [ToggleRow("show-catalogue-on-home", {
+				title: "Afficher le catalogue sur l'accueil",
+				subtitle: "Desactivez-le si la page d'accueil devient trop lourde a charger.",
+				value: Application.getState(PUNK_RECORDS_STATE_KEYS.ShowCatalogueOnHome) !== false,
+				onValueChange: Application.Selector(this, "handleShowCatalogueOnHomeChange")
 			})])];
 		}
-		async refreshFilters() {
-			await this.onRefresh();
-			this.reloadForm();
+		async handleShowCatalogueOnHomeChange(value) {
+			Application.setState(value, PUNK_RECORDS_STATE_KEYS.ShowCatalogueOnHome);
+			Application.invalidateDiscoverSections();
 		}
 	};
-	var SectionSettings = class extends BaseSettings {
-		constructor(filter) {
-			super();
-			this.filter = filter;
+
+//#endregion
+//#region src/PunkRecords/network.ts
+	var MainInterceptor = class extends PaperbackInterceptor {
+		async interceptRequest(request) {
+			return {
+				...request,
+				headers: {
+					...request.headers,
+					referer: `${DOMAIN}/`
+				}
+			};
 		}
-		getSections() {
-			return [
-				Section({ id: "timeRangeSection" }, [SelectRow("timeRange", {
-					title: "Time Range",
-					subtitle: "Defines the time range for retrieving top-ranked content on Sections",
-					layout: "list",
-					value: this.filter.getLimitSettings(),
-					items: this.limitMap,
-					minItemCount: 1,
-					maxItemCount: 1,
-					onValueChange: Application.Selector(this, "handleLimitStatusChange")
-				}), ButtonRow("reset_time", {
-					title: "Reset to Default Value",
-					onSelect: Application.Selector(this, "resetFiltersDialog")
-				})]),
-				...this.isEnabled("updatesHot") || this.isEnabled("updatesNew") ? [Section({
-					id: "latestSectionSettings",
-					header: "Latest Section Settings"
-				}, [ToggleRow("sectionType", {
-					title: "Horizontal List View",
-					subtitle: "Enable to display the latest sections as a horizontal list. Disable to show it in a table layout",
-					value: this.filter.getChapterSectionDiffType(),
-					onValueChange: Application.Selector(this, "handleChapterSectionChange")
-				})])] : [],
-				...this.isEnabled("trending_manga") || this.isEnabled("trending_wt") ? [Section({
-					id: "trendingSectionSettings",
-					header: "Trending Section Settings"
-				}, [
-					ToggleRow("sectionType", {
-						title: "Horizontal List View",
-						subtitle: "Enable to display the trending sections as a horizontal list. Disable to show it in a table layout",
-						value: this.filter.getTrendingSectionDiffType(),
-						onValueChange: Application.Selector(this, "handleTrendingSectionChange")
-					}),
-					ToggleRow("allTimes", {
-						title: "Filter Trending Sections by Year",
-						subtitle: "Enable or disable year-based filtering",
-						value: this.filter.getSectionTimesType(),
-						onValueChange: Application.Selector(this, "handleYearTimesChange")
-					}),
-					StepperRow("yearSettings", {
-						title: "Year",
-						subtitle: "Select the year",
-						value: this.filter.getYearSettings(),
-						minValue: 2023,
-						maxValue: (/* @__PURE__ */ new Date()).getFullYear(),
-						stepValue: 1,
-						loopOver: false,
-						onValueChange: Application.Selector(this, "handleYearStatusChange"),
-						isHidden: !this.filter.getSectionTimesType()
-					})
-				])] : [],
-				...this.isEnabled("recent") ? [Section({
-					id: "recentSectionSettings",
-					header: "Recent Section Settings"
-				}, [ToggleRow("sectionType", {
-					title: "Horizontal List View",
-					subtitle: "Enable to display the recent rection as a horizontal list. Disable to show it in a table layout",
-					value: this.filter.getRecentSectionDiffType(),
-					onValueChange: Application.Selector(this, "handleRecentSectionChange")
-				})])] : [],
-				Section({
-					id: "sectionsOrderSettings",
-					header: "Sections Order"
-				}, [NavigationRow("sectionOrder", {
-					title: "Sections Order",
-					subtitle: "Sections Order",
-					form: new EditableListTestForm()
-				})])
-			];
-		}
-		get limitMap() {
-			return this.filter.sectionLimit.map(({ value, id }) => ({
-				title: value,
-				id
-			}));
-		}
-		async handleYearStatusChange(id) {
-			Application.invalidateDiscoverSections();
-			await this.updateValue(id, "year_settings");
-		}
-		async handleLimitStatusChange(id) {
-			Application.invalidateDiscoverSections();
-			await this.updateValue(id, "limit");
-		}
-		async resetFiltersDialog() {
-			throw new FormConfirmationError(Application.Selector(this, "handleLimitStatusChangeReset"), "Do you want to reset this to the default value?");
-		}
-		async handleLimitStatusChangeReset() {
-			Application.invalidateDiscoverSections();
-			await this.updateValue(["1"], "limit");
-		}
-		async handleYearTimesChange(id) {
-			Application.invalidateDiscoverSections();
-			await this.updateValue(id, "yearTimes");
-		}
-		async handleChapterSectionChange(id) {
-			Application.invalidateDiscoverSections();
-			await this.updateValue(id, "chapterSection");
-		}
-		async handleTrendingSectionChange(id) {
-			Application.invalidateDiscoverSections();
-			await this.updateValue(id, "trendingSection");
-		}
-		async handleRecentSectionChange(id) {
-			Application.invalidateDiscoverSections();
-			await this.updateValue(id, "recentSection");
-		}
-		isEnabled(id) {
-			return !getDeletedDiscoverySections().some((item) => item.id === id);
-		}
-	};
-	var FilterSettings = class extends BaseSettings {
-		constructor(filter) {
-			super();
-			this.filter = filter;
-		}
-		get genresMap() {
-			return this.filter.genres.map(({ value, id }) => ({
-				title: value,
-				id
-			}));
-		}
-		get demogMap() {
-			return this.filter.demographic.map(({ value, id }) => ({
-				title: value,
-				id
-			}));
-		}
-		get typeMap() {
-			return this.filter.contentType.map(({ value, id }) => ({
-				title: value,
-				id
-			}));
-		}
-		getSections() {
-			return [
-				Section({
-					id: "update_settings",
-					footer: "Tags Settings"
-				}, [SelectRow("hide_genres", {
-					title: "Hide Genres",
-					subtitle: "Hide Some Genre",
-					layout: "list",
-					value: this.filter.getHiddenGenresSettings(),
-					items: this.genresMap,
-					minItemCount: 0,
-					maxItemCount: this.genresMap.length,
-					onValueChange: Application.Selector(this, "handleHideGenresStatusChange")
-				}), SelectRow("hide_demog", {
-					title: "Hide Demographic Type",
-					subtitle: "Hide Some Demographic Type",
-					layout: "list",
-					value: this.filter.getHiddenDemogSettings(),
-					items: this.demogMap,
-					minItemCount: 0,
-					maxItemCount: this.demogMap.length,
-					onValueChange: Application.Selector(this, "handleHideDemogStatusChange")
-				})]),
-				Section({
-					id: "type_settings",
-					footer: "Type Settings"
-				}, [SelectRow("type", {
-					title: "Content Type",
-					subtitle: "Show Only this type of content",
-					layout: "list",
-					value: this.filter.getShowOnlySettings(),
-					items: this.typeMap,
-					minItemCount: 0,
-					maxItemCount: this.typeMap.length,
-					onValueChange: Application.Selector(this, "handleShowOnlyStatusChange")
-				})]),
-				Section({
-					id: "reset_settings",
-					footer: "Reset Settings"
-				}, [ButtonRow("reset_genres", {
-					title: "Reset all Filters",
-					onSelect: Application.Selector(this, "resetFiltersDialog")
-				})])
-			];
-		}
-		async handleHideGenresStatusChange(id) {
-			Application.invalidateDiscoverSections();
-			await this.updateValue(id, "hide_genres");
-		}
-		async handleHideDemogStatusChange(id) {
-			Application.invalidateDiscoverSections();
-			await this.updateValue(id, "hide_demog");
-		}
-		async handleShowOnlyStatusChange(id) {
-			Application.invalidateDiscoverSections();
-			await this.updateValue(id, "show_only");
-		}
-		async resetFiltersDialog() {
-			throw new FormConfirmationError(Application.Selector(this, "resetFilters"), "Do you want to reset all values?");
-		}
-		async resetFilters() {
-			Application.invalidateDiscoverSections();
-			await this.updateValue([], "hide_genres");
-			await this.updateValue([], "show_only");
-			await this.updateValue([], "hide_demog");
+		async interceptResponse(request, response, data) {
+			return data;
 		}
 	};
 
@@ -16216,874 +15076,268 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 	const load = getLoad(parse, (dom, options) => options._useHtmlParser2 ? render$1(dom, options) : renderWithParse5(dom));
 
 //#endregion
-//#region src/Comix/utils/webView.ts
-/**
-	* Returns the signed `_=` token for a Comix API path.
-	*
-	* Approach: the bundle's signer (`bi.D`) is module-scoped in an ES module and
-	* is no longer reachable from `globalThis` (the old `vmX_<hex>` namespace is
-	* gone). Instead of probing for it, we load `pageUrl` (a real page whose own
-	* JS fires a signed request to `pathOnly`) in a WebView and hook
-	* `fetch` / `XMLHttpRequest.open` to capture the `_=` value off that URL.
-	*
-	* The bundle's interceptor signs by path only (`Ni` strips the query string),
-	* so the captured token is reusable for any query on the same path. Callers
-	* should cache it.
-	*/
-	async function getVmToken(pathOnly, pageUrl, cookieInterceptor) {
-		const [, buffer] = await Application.scheduleRequest({
-			url: pageUrl,
-			method: "GET"
-		});
-		const rawHtml = Application.arrayBufferToUTF8String(buffer);
-		const hookScript = `
-    (function () {
-      window.__comixTokens__ = window.__comixTokens__ || {};
-      function grab(rawUrl) {
-        if (typeof rawUrl !== "string") return;
-        try {
-          var u = new URL(rawUrl, window.location.origin);
-          var t = u.searchParams.get("_");
-          if (!t) return;
-          var p = u.pathname.replace(/^\\/api\\/v1/, "");
-          if (!window.__comixTokens__[p]) window.__comixTokens__[p] = t;
-        } catch (e) {}
-      }
-      var origFetch = window.fetch;
-      window.fetch = function (input, init) {
-        try { grab(typeof input === "string" ? input : input && input.url); } catch (e) {}
-        return origFetch.apply(this, arguments);
-      };
-      var origOpen = XMLHttpRequest.prototype.open;
-      XMLHttpRequest.prototype.open = function (m, u) {
-        try { grab(u); } catch (e) {}
-        return origOpen.apply(this, arguments);
-      };
-    })();
-  `;
-		const $ = load(rawHtml);
-		$("head").prepend(`<script>${hookScript}<\/script>`);
-		const html = $.html();
-		const cookies = cookieInterceptor.cookiesForUrl(`${DOMAIN}/`);
-		const raw = await Application.executeInWebView({
-			source: {
-				html,
-				baseUrl: pageUrl,
-				loadCSS: false,
-				loadImages: false
-			},
-			inject: `return (async () => {
-      try {
-        const path = ${JSON.stringify(pathOnly)};
-        const deadline = Date.now() + 15000;
-        while (Date.now() < deadline) {
-          const t = window.__comixTokens__ && window.__comixTokens__[path];
-          if (typeof t === "string" && t.length > 0) {
-            return JSON.stringify({ ok: true, token: t });
-          }
-          await new Promise(r => setTimeout(r, 100));
-        }
-        const captured = Object.keys(window.__comixTokens__ || {});
-        return JSON.stringify({ ok: false, error: "timeout; captured paths: " + JSON.stringify(captured) });
-      } catch (e) {
-        return JSON.stringify({ ok: false, error: "exception: " + (e && e.message || e) });
-      }
-    })()`,
-			storage: { cookies }
-		});
-		if (typeof raw.result !== "string") throw new Error(`Comix getVmToken returned non-string: ${JSON.stringify(raw.result)}`);
-		const out = JSON.parse(raw.result);
-		if (!out.ok || !out.token) throw new Error(`Comix getVmToken failed: ${out.error ?? "unknown"}`);
-		return out.token;
-	}
-
-//#endregion
-//#region src/Comix/network.ts
-	var ComixInterceptor = class extends PaperbackInterceptor {
-		async interceptRequest(request) {
-			return {
-				...request,
-				headers: {
-					...request.headers,
-					referer: `${DOMAIN}/`,
-					"user-agent": await Application.getDefaultUserAgent()
-				}
-			};
-		}
-		async interceptResponse(_, response, data) {
-			if (response.headers?.["cf-mitigated"] === "challenge") throw new CloudflareError({
-				url: DOMAIN,
-				method: "GET",
-				headers: { "user-agent": await Application.getDefaultUserAgent() }
-			});
-			return data;
-		}
-	};
-	var ComixApi = class {
-		constructor(filter) {
-			this.filter = filter;
-			_defineProperty(this, "apiLink", "");
-			_defineProperty(this, "tokenCache", /* @__PURE__ */ new Map());
-		}
-		async APIJson(api) {
-			const url = new URL$1(API);
-			(Array.isArray(api.path) ? api.path : [api.path]).forEach((p) => url.addPathComponent(p));
-			if (api.query) for (const [key, value] of Object.entries(api.query)) url.setQueryItem(key, value);
-			this.apiLink = url.toString();
-			const html = await this.getDataFromRequest();
-			return JSON.parse(html);
-		}
-		async fetchSignedApi(path, pageUrl, query, cookieInterceptor) {
-			let token = this.tokenCache.get(path);
-			if (!token) {
-				token = await getVmToken(path, pageUrl, cookieInterceptor);
-				this.tokenCache.set(path, token);
-			}
-			const url = new URL$1(API);
-			path.split("/").filter(Boolean).forEach((p) => url.addPathComponent(p));
-			if (query) for (const [key, value] of Object.entries(query)) url.setQueryItem(key, Array.isArray(value) ? value.join(",") : value);
-			url.setQueryItem("_", token);
-			const [, buffer] = await Application.scheduleRequest({
-				url: url.toString(),
-				method: "GET"
-			});
-			return JSON.parse(Application.arrayBufferToUTF8String(buffer));
-		}
-		async getJsonMangaTopApi(section) {
-			const hiddenGenres = [...this.filter.getHiddenGenresSettings(), ...this.filter.getHiddenDemogSettings()];
-			const types = this.filter.getShowOnlySettings();
-			const days = this.filter.getLimitSettings()[0];
-			const additionalInfo = ["author"];
-			const config = {
-				popular: {
-					path: "manga/top",
-					query: {
-						type: "trending",
-						days,
-						limit: "15",
-						"includes[]": additionalInfo,
-						...types.length > 0 && { "types[]": types },
-						...hiddenGenres.length > 0 && { "genres_ex[]": hiddenGenres }
-					}
-				},
-				follow: {
-					path: "manga/top",
-					query: {
-						type: "follows",
-						days,
-						limit: "50",
-						"includes[]": additionalInfo,
-						...types.length > 0 && { "types[]": types },
-						...hiddenGenres.length > 0 && { "genres_ex[]": hiddenGenres }
-					}
-				}
-			}[section];
-			if (!config) throw new Error(`${section} not found on API`);
-			return this.APIJson({
-				path: config.path,
-				query: config.query
-			});
-		}
-		async getJsonMangaApi(section, page) {
-			const hiddenGenres = [...this.filter.getHiddenGenresSettings(), ...this.filter.getHiddenDemogSettings()];
-			const types = this.filter.getShowOnlySettings();
-			const days = this.filter.getLimitSettings()[0];
-			const additionalInfo = ["author"];
-			const year = this.filter.getYearSettings();
-			const config = {
-				popular: {
-					path: "manga/top",
-					query: {
-						type: "trending",
-						days,
-						limit: "15",
-						"includes[]": additionalInfo,
-						...types.length > 0 && { "types[]": types },
-						...hiddenGenres.length > 0 && { "genres_ex[]": hiddenGenres }
-					}
-				},
-				trending_manga: {
-					path: "manga",
-					query: {
-						"order[views_30d]": "desc",
-						"types[]": "manga",
-						limit: "28",
-						"includes[]": additionalInfo,
-						page: page.toString(),
-						...hiddenGenres.length > 0 && { "genres_ex[]": hiddenGenres },
-						...this.filter.getSectionTimesType() && { "release_year[from]": year.toString() }
-					}
-				},
-				trending_wt: {
-					path: "manga",
-					query: {
-						"order[views_30d]": "desc",
-						"types[]": ["manhwa", "manhua"],
-						limit: "28",
-						"includes[]": additionalInfo,
-						page: page.toString(),
-						...hiddenGenres.length > 0 && { "genres_ex[]": hiddenGenres },
-						...this.filter.getSectionTimesType() && { "release_year[from]": year.toString() }
-					}
-				},
-				recent: {
-					path: "manga",
-					query: {
-						"order[created_at]": "desc",
-						page: page.toString(),
-						limit: "20",
-						"includes[]": additionalInfo,
-						...types.length > 0 && { "types[]": types },
-						...hiddenGenres.length > 0 && { "genres_ex[]": hiddenGenres }
-					}
-				},
-				completed: {
-					path: "manga",
-					query: {
-						"statuses[]": "finished",
-						"order[chapter_updated_at]": "desc",
-						page: page.toString(),
-						limit: "20",
-						...types.length > 0 && { "types[]": types },
-						...hiddenGenres.length > 0 && { "genres_ex[]": hiddenGenres }
-					}
-				},
-				updatesHot: {
-					path: "manga",
-					query: {
-						"order[chapter_updated_at]": "desc",
-						page: page.toString(),
-						limit: "20",
-						scope: "hot",
-						...types.length > 0 && { "types[]": types },
-						...hiddenGenres.length > 0 && { "genres_ex[]": hiddenGenres }
-					}
-				},
-				updatesNew: {
-					path: "manga",
-					query: {
-						"order[chapter_updated_at]": "desc",
-						page: page.toString(),
-						limit: "20",
-						...types.length > 0 && { "types[]": types },
-						...hiddenGenres.length > 0 && { "genres_ex[]": hiddenGenres }
-					}
-				}
-			}[section];
-			if (!config) throw new Error(`${section} not found on API`);
-			return this.APIJson({
-				path: config.path,
-				query: config.query
-			});
-		}
-		async getDataFromRequest() {
-			const request = {
-				url: this.apiLink,
-				method: "GET"
-			};
-			const data = await Application.scheduleRequest(request);
-			return Application.arrayBufferToUTF8String(data[1]);
-		}
-		async getJsonMangaInfoApi(mangaId) {
-			return this.APIJson({
-				path: ["manga", mangaId],
-				query: { "includes[]": [
-					"author",
-					"artist",
-					"genre",
-					"demographic"
-				] }
-			});
-		}
-		async getJsonChapterApi(chapter, page, cookieStorageInterceptor) {
-			return this.fetchSignedApi(`/manga/${chapter}/chapters`, `${DOMAIN}/title/${chapter}`, {
-				page: page.toString(),
-				limit: "100",
-				"order[number]": "desc"
-			}, cookieStorageInterceptor);
-		}
-		async getJsonSearchApi(keyword, page, filters, mode, min_chapter, sortBy, orderBy) {
-			const query = {
-				page: page.toString(),
-				[`order[${sortBy}]`]: orderBy,
-				genres_mode: mode,
-				min_chap: min_chapter.toString()
-			};
-			if (keyword.length > 1) query.keyword = keyword;
-			filters.forEach((f) => {
-				query[f.type] = f.filters;
-			});
-			return this.APIJson({
-				path: "manga",
-				query
-			});
-		}
-		async getJsonChapPagesApi(chapter, cookieStorageInterceptor) {
-			const url = chapter.additionalInfo?.url;
-			if (typeof url !== "string" || !url) throw new Error(`Comix getJsonChapPagesApi: missing url for chapter ${chapter.chapterId}`);
-			return this.fetchSignedApi(`/chapters/${chapter.chapterId}`, `${DOMAIN}${url}`, void 0, cookieStorageInterceptor);
-		}
-		async getFiltersApi(filter) {
-			return this.APIJson({
-				path: "tags/search",
-				query: {
-					limit: "50",
-					type: filter
-				}
-			});
-		}
-	};
-
-//#endregion
-//#region src/Comix/utils/helpers.ts
-	function getDefaultMetadata(filter, genresFilter = "") {
-		const genresHidden = filter.getHiddenGenresSettings();
-		const getExcludedGenreObject = Object.fromEntries(filter.genres.filter((option) => genresHidden.includes(option.id)).map((item) => [item.id, "excluded"]));
-		if (genresFilter.length > 0) getExcludedGenreObject[genresFilter] = "included";
-		const demographicHidden = filter.getHiddenDemogSettings();
-		const getExcludedDemographicObject = Object.fromEntries(filter.demographic.filter((option) => demographicHidden.includes(option.id)).map((item) => [item.id, "excluded"]));
-		const themesHidden = filter.getHiddenThemesSettings();
-		const getExcludedThemesObject = Object.fromEntries(filter.genres.filter((option) => themesHidden.includes(option.id)).map((item) => [item.id, "excluded"]));
-		const showOnly = filter.getShowOnlySettings();
-		return {
-			genres: getExcludedGenreObject,
-			themes: getExcludedThemesObject,
-			demographic: getExcludedDemographicObject,
-			types: Object.fromEntries(filter.contentType.filter((option) => showOnly.includes(option.id)).map((item) => [item.id, "included"]))
-		};
-	}
-	function mapTags(filter) {
-		if (!filter || typeof filter !== "object") return [];
-		return Object.entries(filter).flatMap(([key, value]) => {
-			if (value === "included") return [key];
-			return [];
-		});
-	}
-	function mapTagsExcluded(filter) {
-		if (!filter || typeof filter !== "object") return [];
-		return Object.entries(filter).flatMap(([key, value]) => {
-			if (value === "excluded") return [key];
-			return [];
-		});
-	}
-	function buildFilter(excluded, type, ...sources) {
-		const values = excluded ? sources.flatMap(mapTagsExcluded) : sources.flatMap(mapTags);
-		return values.length ? [{
-			type,
-			filters: values
-		}] : [];
-	}
-	function getRanking(content) {
-		switch (content) {
-			case "safe": return ContentRating.EVERYONE;
-			case "suggestive": return ContentRating.MATURE;
-			case "pornographic": return ContentRating.ADULT;
-			default: return ContentRating.EVERYONE;
-		}
-	}
-	function parseRelativeDate(value) {
-		const now = /* @__PURE__ */ new Date();
-		const match = value.match(/^(\d+)\s*(s|m|h|d|w|mo|mos|y)s?(\s+ago)?$/i);
-		if (!match) return now;
-		const amount = Number(match[1]);
-		switch (match[2].toLowerCase()) {
-			case "s":
-				now.setSeconds(now.getSeconds() - amount);
-				break;
-			case "m":
-				now.setMinutes(now.getMinutes() - amount);
-				break;
-			case "h":
-				now.setHours(now.getHours() - amount);
-				break;
-			case "d":
-				now.setDate(now.getDate() - amount);
-				break;
-			case "w":
-				now.setDate(now.getDate() - amount * 7);
-				break;
-			case "mo":
-			case "mos":
-				now.setMonth(now.getMonth() - amount);
-				break;
-			case "y":
-				now.setFullYear(now.getFullYear() - amount);
-				break;
-		}
-		return now;
-	}
-	function getPoster(item) {
-		return item.poster?.large?.length ? item.poster.large : item.poster?.medium?.length ? item.poster.medium : NO_IMAGE;
-	}
-
-//#endregion
-//#region src/Comix/parsers.ts
-	var ComixParser = class {
-		parseSection(section, json) {
-			const latest = [];
-			if (json.status === "ok") for (const item of json.result) latest.push({
-				type: section === "follow" ? "prominentCarouselItem" : section === "popular" ? "featuredCarouselItem" : "simpleCarouselItem",
-				contentRating: getRanking(item.contentRating),
-				imageUrl: getPoster(item),
-				mangaId: item.hid,
-				title: item.title,
-				subtitle: item.authors?.map((author) => author.title).join(" ") ?? ""
-			});
-			return {
-				items: latest,
-				metadata: void 0
-			};
-		}
-		parseGenreSection(ComixMetadata, genres, hiddenGenres, buildMetadata) {
-			const allGenres = [];
-			const page = ComixMetadata?.page ?? 1;
-			genres.filter((filterName) => !hiddenGenres.includes(filterName.id)).forEach((filterItem) => {
-				allGenres.push({
-					type: "genresCarouselItem",
-					searchQuery: {
-						title: "",
-						metadata: buildMetadata(filterItem.id)
-					},
-					name: filterItem.value,
-					contentRating: filterItem.value === "Adult" ? ContentRating.ADULT : ContentRating.EVERYONE
-				});
-			});
-			return {
-				items: allGenres,
-				metadata: { page: page + 1 }
-			};
-		}
-		parseSectionSimple(page, json) {
-			const latest = [];
-			if (json.status === "ok") {
-				for (const item of json.result.items) latest.push({
-					contentRating: getRanking(item.contentRating),
-					imageUrl: getPoster(item),
-					mangaId: item?.hid ?? "NULL",
-					subtitle: `Chapter ${item.finalChapter || item.latestChapter}`,
-					title: item.title,
-					type: "simpleCarouselItem"
-				});
-				return {
-					items: latest,
-					metadata: json.result.items.length > 0 ? { page: page + 1 } : void 0
-				};
-			}
-			return {
-				items: latest,
-				metadata: void 0
-			};
-		}
-		parseSectionChapter(page, json) {
-			const latest = [];
-			if (json.status === "ok") {
-				for (const item of json.result.items) latest.push({
-					contentRating: getRanking(item.contentRating),
-					imageUrl: getPoster(item),
-					chapterId: item.hid,
-					mangaId: item.hid,
-					subtitle: `Chapter ${item.finalChapter || item.latestChapter}`,
-					title: item.title,
-					type: "chapterUpdatesCarouselItem",
-					publishDate: parseRelativeDate(item.chapterUpdatedAtFormatted)
-				});
-				return {
-					items: latest,
-					metadata: json.result.items.length > 0 ? { page: page + 1 } : void 0
-				};
-			}
-			return {
-				items: latest,
-				metadata: void 0
-			};
-		}
-		parseChapters(manga, items) {
-			return items.map((chapter) => {
-				return {
-					chapterId: chapter.id.toString(),
-					sourceManga: manga,
-					langCode: chapter.language,
-					chapNum: chapter.number,
-					title: chapter.name,
-					volume: chapter.volume,
-					version: chapter.isOfficial ? "⭐Official" : chapter.group?.name ?? "Unknown",
-					sortingIndex: chapter.number,
-					publishDate: parseRelativeDate(chapter.createdAtFormatted),
-					additionalInfo: {
-						vote: chapter.votes.toString(),
-						url: chapter.url
-					}
-				};
-			});
-		}
-		parseChapterDetails(chapterId, pages) {
-			const { baseUrl, items } = pages.result.pages;
-			const base = baseUrl.replace(/\/$/, "");
-			return {
-				id: chapterId,
-				mangaId: pages.result.mangaId.toString(),
-				pages: items.map((img) => img.url.startsWith("http") ? img.url : `${base}/${img.url.replace(/^\//, "")}`)
-			};
-		}
-		parseMangaDetails(mangaId, info) {
-			const manga = info.result;
-			const toTag = (item) => ({
-				id: item.id.toString(),
-				title: item.title
-			});
-			const demographicArray = manga.demographics.map(toTag);
-			const genreArray = manga.genres.map(toTag);
-			const tags = [{
-				title: "demographic",
-				tags: demographicArray,
-				id: "demographic"
-			}, {
-				title: "genres",
-				tags: genreArray,
-				id: "genres"
+//#region src/PunkRecords/parsers.ts
+	const FALLBACK_THUMBNAIL = "icon.png";
+	var PunkRecordsParser = class {
+		buildDiscoverSections(showCatalogueOnHome) {
+			const sections = [{
+				id: "latest",
+				title: "Dernieres sorties",
+				type: DiscoverSectionType.featured
 			}];
+			if (showCatalogueOnHome) sections.push({
+				id: "catalogue",
+				title: "Catalogue",
+				type: DiscoverSectionType.simpleCarousel
+			});
+			return sections;
+		}
+		buildDiscoverItems(sectionId, catalogue, homeHtml) {
+			if (sectionId === "latest") return this.extractLatestUpdatedMangaIds(load(homeHtml)).map((mangaId) => catalogue.find((entry) => entry.mangaId === mangaId)).filter((entry) => entry !== void 0).map((entry) => this.toDiscoverItem(entry, "featuredCarouselItem"));
+			return catalogue.map((entry) => this.toDiscoverItem(entry, "simpleCarouselItem"));
+		}
+		buildSearchResults(catalogue, query) {
+			const search = this.normalizeString(query);
+			return catalogue.filter((entry) => !search || this.normalizeString(entry.title).includes(search)).map((entry) => ({
+				mangaId: entry.mangaId,
+				title: entry.title,
+				imageUrl: entry.image,
+				contentRating: ContentRating.EVERYONE
+			}));
+		}
+		parseMangaDetails(mangaId, html, fallbackEntry) {
+			const $ = load(html);
+			const primaryTitle = (this.extractTagContent($, "title") ?? fallbackEntry?.title ?? mangaId).replace(/\s+\|\s+Punk Records.*$/i, "").replace(/\s+-\s+Scan couleur$/i, "").trim();
+			const thumbnailUrl = this.extractMetaContent($, "property", "og:image") ?? fallbackEntry?.image ?? FALLBACK_THUMBNAIL;
+			const synopsis = this.extractMetaContent($, "name", "description") ?? "Aucune description disponible.";
+			const creator = this.extractMetaContent($, "name", "keywords")?.split(",").map((part) => part.trim()).filter((part) => /^[A-ZÀ-ÖØ-Þ][\p{L}.'-]+(?:\s+[A-ZÀ-ÖØ-Þ][\p{L}.'-]+)+$/u.test(part)).at(-1);
 			return {
 				mangaId,
 				mangaInfo: {
-					thumbnailUrl: getPoster(manga),
-					synopsis: manga.synopsis,
-					primaryTitle: manga.title,
-					secondaryTitles: manga.altTitles,
-					contentRating: manga.contentRating !== "safe" ? ContentRating.ADULT : ContentRating.EVERYONE,
-					status: manga.status,
-					bannerUrl: getPoster(manga),
-					artist: manga.artists?.map((artist) => artist.title).join(" ") ?? "",
-					author: manga.authors?.map((author) => author.title).join(" ") ?? "",
-					rating: manga.ratedAvg / 10,
-					tagGroups: tags,
-					shareUrl: `${DOMAIN}${manga.url}`
+					thumbnailUrl,
+					synopsis,
+					primaryTitle,
+					secondaryTitles: [],
+					contentRating: ContentRating.EVERYONE,
+					author: creator,
+					artist: creator,
+					status: "Ongoing",
+					additionalInfo: { format: "Scan couleur" },
+					artworkUrls: [thumbnailUrl]
 				}
 			};
 		}
-		parseSearchResults(page, search) {
-			const items = [];
-			if (search.status.toString() === "ok") {
-				search.result.items.forEach((item) => {
-					items.push({
-						mangaId: item.hid,
-						title: item.title,
-						imageUrl: getPoster(item),
-						contentRating: getRanking(item.contentRating),
-						subtitle: `Chapter ${item.finalChapter || item.latestChapter}`
-					});
+		parseChapterList(html, sourceManga) {
+			const $ = load(html);
+			const chapters = [];
+			const seen = /* @__PURE__ */ new Set();
+			$(`a[href^="/mangas/${sourceManga.mangaId}/"]`).each((_, element) => {
+				const chapterId = ($(element).attr("href") ?? "").split("/").filter(Boolean)[2]?.trim();
+				const title = $(element).text().trim();
+				if (!chapterId || seen.has(chapterId)) return;
+				chapters.push({
+					chapterId,
+					sourceManga,
+					langCode: "FR",
+					chapNum: this.extractChapterNumber(chapterId, title),
+					title: title || void 0
 				});
-				return {
-					items,
-					metadata: search.result.items.length > 0 ? { page: page + 1 } : void 0
-				};
-			}
+				seen.add(chapterId);
+			});
+			if (!chapters.length) throw new Error(`Couldn't find any chapters for mangaId: ${sourceManga.mangaId}!`);
+			return chapters;
+		}
+		parseChapterDetails(html, chapter) {
+			const $ = load(html);
+			const pages = [];
+			const seen = /* @__PURE__ */ new Set();
+			$("img[alt*=\"-page-\"]").each((_, element) => {
+				const page = $(element).attr("src")?.trim();
+				if (!page || seen.has(page)) return;
+				if (!page.startsWith(`${"https://api.punkrecordz.com"}/images/`)) return;
+				pages.push(page);
+				seen.add(page);
+			});
+			if (!pages.length) throw new Error(`Couldn't find any pages for mangaId: ${chapter.sourceManga.mangaId} chapterId: ${chapter.chapterId}!`);
 			return {
-				items,
-				metadata: void 0
+				id: chapter.chapterId,
+				mangaId: chapter.sourceManga.mangaId,
+				pages
 			};
 		}
-		parseFilterUpdate(response) {
-			const filters = [];
-			response.result.forEach((filter) => {
-				filters.push({
-					id: filter.id.toString(),
-					value: filter.label
-				});
+		parseCatalogue(html) {
+			const $ = load(html);
+			const scriptTexts = $("script").toArray().map((element) => $(element).text().trim()).filter((text) => text.length > 0);
+			const entries = this.parseCatalogueScripts(scriptTexts);
+			if (!entries.length) throw new Error("Couldn't parse the Punk Records catalogue.");
+			return entries;
+		}
+		extractMetaContent($, attribute, key) {
+			return $(`meta[${attribute}="${key}"]`).attr("content")?.trim();
+		}
+		extractTagContent($, tagName) {
+			return $(tagName).first().text().trim() || void 0;
+		}
+		extractLatestUpdatedMangaIds($) {
+			return $("a[href^=\"/mangas/\"]").toArray().map((element) => ($(element).attr("href") ?? "").split("/").filter(Boolean)[1]).filter((mangaId) => Boolean(mangaId)).reduce((mangaIds, mangaId) => {
+				if (!mangaIds.includes(mangaId)) mangaIds.push(mangaId);
+				return mangaIds;
+			}, []);
+		}
+		/**
+		* Punk Records exposes chapter labels in French ("Chapitre 12")
+		*/
+		extractChapterNumber(chapterId, title) {
+			const titleMatch = /chapitre\s+([\d.]+)/i.exec(title);
+			if (titleMatch?.[1]) return Number(titleMatch[1]);
+			const chapterMatch = /([\d.]+)/.exec(chapterId);
+			return chapterMatch?.[1] ? Number(chapterMatch[1]) : 0;
+		}
+		normalizeString(value) {
+			return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+		}
+		isPunkRecordsMangaRecord(value) {
+			return value.__typename === "Manga" && (!("name" in value) || typeof value.name === "string") && (!("slug" in value) || typeof value.slug === "string") && (!("thumb" in value) || typeof value.thumb === "string") && (!("published" in value) || typeof value.published === "boolean");
+		}
+		addCatalogueEntry(entries, seen, rawTitle, mangaId, thumb, published) {
+			if (!published || !rawTitle || !mangaId || !thumb || seen.has(mangaId)) return;
+			entries.push({
+				mangaId,
+				title: JSON.parse(`"${rawTitle}"`),
+				image: new URL$1(API_DOMAIN).addPathComponent("images").addPathComponent("webp").addPathComponent(`${thumb}.webp`).toString()
 			});
-			return filters;
+			seen.add(mangaId);
+		}
+		walkCatalogueJson(value, entries, seen) {
+			if (Array.isArray(value)) {
+				for (const item of value) this.walkCatalogueJson(item, entries, seen);
+				return;
+			}
+			if (typeof value !== "object" || value === null || Array.isArray(value)) return;
+			const record = value;
+			if (this.isPunkRecordsMangaRecord(record)) this.addCatalogueEntry(entries, seen, record.name, record.slug, record.thumb, record.published !== false);
+			for (const child of Object.values(record)) this.walkCatalogueJson(child, entries, seen);
+		}
+		parseCatalogueScripts(scriptTexts) {
+			const entries = [];
+			const seen = /* @__PURE__ */ new Set();
+			for (const scriptText of scriptTexts) try {
+				this.walkCatalogueJson(JSON.parse(scriptText), entries, seen);
+			} catch {}
+			const normalizedScripts = scriptTexts.join("\n").replace(/\\"/g, "\"").replace(/\\\\u0026/g, "&").replace(/\\u0026/g, "&");
+			const mangaRegex = /"__typename":"Manga"[\s\S]{0,250}?"name":"((?:\\.|[^"\\])*)"[\s\S]{0,250}?"slug":"([^"]+)"[\s\S]{0,250}?"thumb":"([^"]+)"(?:[\s\S]{0,120}?"published":(true|false))?/g;
+			let match;
+			while ((match = mangaRegex.exec(normalizedScripts)) !== null) this.addCatalogueEntry(entries, seen, match[1], match[2], match[3], match[4] !== "false");
+			return entries;
+		}
+		toDiscoverItem(entry, type) {
+			return {
+				type,
+				mangaId: entry.mangaId,
+				title: entry.title,
+				imageUrl: entry.image,
+				contentRating: ContentRating.EVERYONE
+			};
 		}
 	};
 
 //#endregion
-//#region src/Comix/pbconfig.ts
+//#region src/PunkRecords/pbconfig.ts
 	var pbconfig_default = {
-		name: "Comix",
-		description: "Extension that pulls content from Comix.to.",
-		version: "1.0.0-alpha.25",
+		name: "Punk Records",
+		description: "Extension pour récupérer le contenu de punkrecordz.com.",
+		version: "1.0.0-alpha.1",
 		icon: "icon.png",
-		language: "en",
+		language: "fr",
 		contentRating: ContentRating.EVERYONE,
 		capabilities: [
 			SourceIntents.CHAPTER_PROVIDING,
-			SourceIntents.CLOUDFLARE_BYPASS_PROVIDING,
 			SourceIntents.DISCOVER_SECTION_PROVIDING,
 			SourceIntents.SEARCH_RESULT_PROVIDING,
 			SourceIntents.SETTINGS_FORM_PROVIDING
 		],
 		badges: [],
 		developers: [{
-			name: "Catta1997",
-			github: "https://github.com/Catta1997"
+			name: "Finebouche",
+			github: "https://github.com/Finebouche"
 		}]
 	};
 
 //#endregion
-//#region src/Comix/main.ts
-	var ComixExtension = class {
+//#region src/PunkRecords/main.ts
+	var PunkRecordsExtension = class {
 		constructor() {
-			_defineProperty(this, "globalRateLimiter", new BasicRateLimiter("rateLimiter", {
+			_defineProperty(this, "parser", new PunkRecordsParser());
+			_defineProperty(this, "mainRateLimiter", new BasicRateLimiter("main", {
 				numberOfRequests: 5,
 				bufferInterval: 1,
 				ignoreImages: true
 			}));
-			_defineProperty(this, "mainInterceptor", new ComixInterceptor("main"));
-			_defineProperty(this, "cookieStorageInterceptor", new CookieStorageInterceptor({ storage: "stateManager" }));
-			_defineProperty(this, "parser", new ComixParser());
-			_defineProperty(this, "filter", new ComixFilter());
-			_defineProperty(this, "api", new ComixApi(this.filter));
+			_defineProperty(this, "mainInterceptor", new MainInterceptor("main"));
 		}
 		async initialise() {
-			this.globalRateLimiter.registerInterceptor();
-			this.cookieStorageInterceptor.registerInterceptor();
+			this.mainRateLimiter.registerInterceptor();
 			this.mainInterceptor.registerInterceptor();
 		}
-		async checkFilters() {
-			if (this.filter.demographic.length === 0 || this.filter.formats.length === 0 || this.filter.themes.length === 0 || this.filter.genres.length === 0) await this.updateFilters(true);
-		}
-		async updateFilters(force) {
-			if (Number(Application.getState("last-filter-fetch") ?? 0) + 172800 > (/* @__PURE__ */ new Date()).valueOf() / 1e3 && !force) {
-				const [genres, demographic, formats] = [
-					"genre",
-					"demographic",
-					"format"
-				].map((k) => Application.getState(`${k}`));
-				if (genres === void 0 || demographic === void 0 || formats === void 0) {
-					await this.updateFilters(true);
-					return;
-				}
-				this.filter.setGenreFilter(JSON.parse(genres));
-				this.filter.setDemographicFilter(JSON.parse(demographic));
-				this.filter.setFormatsFilter(JSON.parse(formats));
-				await this.checkFilters();
-			} else {
-				this.filter.setGenreFilter(this.parser.parseFilterUpdate(await this.api.getFiltersApi("genre")));
-				this.filter.setDemographicFilter(this.parser.parseFilterUpdate(await this.api.getFiltersApi("demographic")));
-				this.filter.setFormatsFilter(this.parser.parseFilterUpdate(await this.api.getFiltersApi("format")));
-				Application.setState(String((/* @__PURE__ */ new Date()).valueOf() / 1e3), "last-filter-fetch");
-			}
-		}
 		async getSettingsForm() {
-			await this.checkFilters();
-			return new MainSettings(this.filter, () => this.updateFilters(true));
-		}
-		async saveCloudflareBypassCookies(cookies) {
-			for (const cookie of cookies) if (cookie.name == "cf_clearance") this.cookieStorageInterceptor.setCookie(cookie);
+			return new PunkRecordsSettingsForm();
 		}
 		async getDiscoverSections() {
-			const allSections = {
-				popular: {
-					id: "popular",
-					title: "Popular",
-					type: DiscoverSectionType.featured
-				},
-				follow: {
-					id: "follow",
-					title: "Most Follows New Comics",
-					type: DiscoverSectionType.prominentCarousel
-				},
-				recent: {
-					id: "recent",
-					title: "Recently Added",
-					type: this.filter.getRecentSectionDiffType() ? DiscoverSectionType.simpleCarousel : DiscoverSectionType.chapterUpdates
-				},
-				trending_manga: {
-					id: "trending_manga",
-					title: `Trending Manga${this.filter.getSectionTimesType() ? " of " + this.filter.getYearSettings() : ""}`,
-					type: this.filter.getTrendingSectionDiffType() ? DiscoverSectionType.simpleCarousel : DiscoverSectionType.chapterUpdates
-				},
-				trending_wt: {
-					id: "trending_wt",
-					title: `Trending WebToons${this.filter.getSectionTimesType() ? " of " + this.filter.getYearSettings() : ""}`,
-					type: this.filter.getTrendingSectionDiffType() ? DiscoverSectionType.simpleCarousel : DiscoverSectionType.chapterUpdates
-				},
-				completed: {
-					id: "completed",
-					title: "Completed",
-					type: DiscoverSectionType.simpleCarousel
-				},
-				updatesHot: {
-					id: "updatesHot",
-					title: "Latest Updates (HOT)",
-					type: this.filter.getChapterSectionDiffType() ? DiscoverSectionType.simpleCarousel : DiscoverSectionType.chapterUpdates
-				},
-				updatesNew: {
-					id: "updatesNew",
-					title: "Latest Updates (NEW)",
-					type: this.filter.getChapterSectionDiffType() ? DiscoverSectionType.simpleCarousel : DiscoverSectionType.chapterUpdates
-				},
-				genresSection: {
-					id: "genresSection",
-					title: "Best of genres",
-					type: DiscoverSectionType.genres
-				}
-			};
-			return getDiscoverySectionsOrder().map((key) => allSections[key.id]).filter(Boolean);
+			return this.parser.buildDiscoverSections(Application.getState(PUNK_RECORDS_STATE_KEYS.ShowCatalogueOnHome) !== false);
 		}
 		async getDiscoverSectionItems(section, metadata) {
-			const page = metadata?.page ?? 1;
-			const fetchSimple = async (id) => this.parser.parseSectionSimple(page, await this.api.getJsonMangaApi(id, page));
-			const fetchChapter = async (id) => this.parser.parseSectionChapter(page, await this.api.getJsonMangaApi(id, page));
-			switch (section.id) {
-				case "popular":
-				case "follow": return this.parser.parseSection(section.id, await this.api.getJsonMangaTopApi(section.id));
-				case "recent": return this.filter.getRecentSectionDiffType() ? fetchSimple("recent") : fetchChapter("recent");
-				case "trending_manga": return this.filter.getTrendingSectionDiffType() ? fetchSimple("trending_manga") : fetchChapter("trending_manga");
-				case "trending_wt": return this.filter.getTrendingSectionDiffType() ? fetchSimple("trending_wt") : fetchChapter("trending_wt");
-				case "completed": return fetchSimple("completed");
-				case "updatesNew": return this.filter.getChapterSectionDiffType() ? fetchSimple("updatesNew") : fetchChapter("updatesNew");
-				case "updatesHot": return this.filter.getChapterSectionDiffType() ? fetchSimple("updatesHot") : fetchChapter("updatesHot");
-				case "genresSection":
-					await this.updateFilters(true);
-					return this.parser.parseGenreSection(metadata, this.filter.genres, this.filter.getHiddenGenresSettings(), (genreId) => getDefaultMetadata(this.filter, genreId));
-				default: return { items: [] };
-			}
+			const [catalogue, homeHtml] = await Promise.all([this.fetchCatalogue(), section.id === PUNK_RECORDS_SECTIONS.LATEST ? Application.scheduleRequest({
+				url: `${DOMAIN}/`,
+				method: "GET"
+			}).then(([, buffer]) => Application.arrayBufferToUTF8String(buffer)) : Promise.resolve("")]);
+			if (section.id === PUNK_RECORDS_SECTIONS.LATEST || section.id === PUNK_RECORDS_SECTIONS.CATALOGUE) return { items: this.parser.buildDiscoverItems(section.id, catalogue, homeHtml) };
+			return { items: [] };
 		}
-		async getSearchResults(searchQuery, metadata, sortingOption) {
-			let sorting = sortingOption;
-			if (searchQuery.metadata === void 0) searchQuery.metadata = getDefaultMetadata(this.filter);
-			sorting.id = sorting.id.split(searchQuery.title.length > 1 ? "#title" : "#empty")[0];
-			const page = metadata?.page ?? 1;
-			const genres = searchQuery.metadata?.genres ?? {};
-			const formats = searchQuery.metadata?.formats ?? {};
-			const demographic = searchQuery.metadata?.demographic ?? {};
-			const status = searchQuery.metadata?.status ?? {};
-			const types = searchQuery.metadata?.types ?? {};
-			const mode = searchQuery.metadata?.mode ?? "and";
-			const min_chapters = searchQuery.metadata?.minChap ?? 1;
-			const [sortBy, orderBy] = sorting.id.split("$");
-			const filters = [
-				...buildFilter(false, "genres_in[]", genres, formats),
-				...buildFilter(true, "genres_ex[]", genres, formats),
-				...buildFilter(false, "types[]", types),
-				...buildFilter(false, "demographics[]", demographic),
-				...buildFilter(false, "statuses[]", status)
-			];
-			const search = await this.api.getJsonSearchApi(searchQuery.title, page, filters, mode, min_chapters, sortBy, orderBy);
-			return this.parser.parseSearchResults(page, search);
-		}
-		async getAdvancedSearchForm(searchQuery) {
-			await this.checkFilters();
-			if (searchQuery.metadata === void 0) searchQuery.metadata = getDefaultMetadata(this.filter);
-			return new ComixAdvancedSearchForm(searchQuery, this.filter);
-		}
-		async getSortingOptions(query) {
-			const idSuffix = query.title.length > 1 ? "#title" : "";
-			let sortingOptions = [
-				{
-					id: "views_30d$desc#empty",
-					label: "Any"
-				},
-				{
-					id: "chapter_updated_at$asc" + idSuffix,
-					label: "Update Date ↑"
-				},
-				{
-					id: "chapter_updated_at$desc" + idSuffix,
-					label: "Update Date ↓"
-				},
-				{
-					id: "created_at$asc" + idSuffix,
-					label: "Created Date ↑"
-				},
-				{
-					id: "created_at$desc" + idSuffix,
-					label: "Created Date ↓"
-				},
-				{
-					id: "title$asc" + idSuffix,
-					label: "Title ↑"
-				},
-				{
-					id: "title$desc" + idSuffix,
-					label: "Title ↓"
-				},
-				{
-					id: "year$asc" + idSuffix,
-					label: "Year ↑"
-				},
-				{
-					id: "year$desc" + idSuffix,
-					label: "Year ↓"
-				},
-				{
-					id: "score$asc" + idSuffix,
-					label: "Average Score ↑"
-				},
-				{
-					id: "score$desc" + idSuffix,
-					label: "Average Score ↓"
-				},
-				{
-					id: "views_total$asc" + idSuffix,
-					label: "Total Views ↑"
-				},
-				{
-					id: "views_totals$desc" + idSuffix,
-					label: "Total Views ↓"
-				},
-				{
-					id: "follows_total$asc" + idSuffix,
-					label: "Most Follows ↑"
-				},
-				{
-					id: "follows_total$desc" + idSuffix,
-					label: "Most Follows ↓"
-				},
-				{
-					id: "views_7d$asc" + idSuffix,
-					label: "Most Views 7 Days ↑"
-				},
-				{
-					id: "views_7d$desc" + idSuffix,
-					label: "Most Views 7 Days ↓"
-				},
-				{
-					id: "views_30d$asc" + idSuffix,
-					label: "Most Views 1 Month ↑"
-				},
-				{
-					id: "views_30d$desc" + idSuffix,
-					label: "Most Views 1 Month ↓"
-				},
-				{
-					id: "views_90d$asc" + idSuffix,
-					label: "Most Views 3 Month ↑"
-				},
-				{
-					id: "views_90d$desc" + idSuffix,
-					label: "Most Views 3 Month ↓"
-				}
-			];
-			if (query.title.length > 1) {
-				sortingOptions.unshift({
-					id: "relevance$desc" + idSuffix,
-					label: "Best Match"
-				});
-				sortingOptions = sortingOptions.filter((sort) => {
-					return sort.id !== "views_30d$desc#empty";
-				});
-			}
-			return sortingOptions;
+		async getSearchResults(query, metadata, sortingOption) {
+			const catalogue = await this.fetchCatalogue();
+			return { items: this.parser.buildSearchResults(catalogue, query.title ?? "") };
 		}
 		async getMangaDetails(mangaId) {
-			const info = await this.api.getJsonMangaInfoApi(mangaId);
-			return this.parser.parseMangaDetails(mangaId, info);
+			const [mangaPageHtml, catalogue] = await Promise.all([Application.scheduleRequest({
+				url: this.buildMangaUrl(mangaId),
+				method: "GET"
+			}).then(([, buffer]) => Application.arrayBufferToUTF8String(buffer)), this.fetchCatalogue()]);
+			const fallbackEntry = catalogue.find((manga) => manga.mangaId === mangaId);
+			const manga = this.parser.parseMangaDetails(mangaId, mangaPageHtml, fallbackEntry);
+			return {
+				...manga,
+				mangaInfo: {
+					...manga.mangaInfo,
+					shareUrl: this.buildMangaUrl(mangaId)
+				}
+			};
 		}
-		async getChapters(sourceManga) {
-			const firstPage = await this.api.getJsonChapterApi(sourceManga.mangaId, 1, this.cookieStorageInterceptor);
-			const totalPages = firstPage.result.meta.lastPage ?? 1;
-			const remainingPageNumbers = [];
-			for (let p = 2; p <= totalPages; p++) remainingPageNumbers.push(p);
-			const remainingPages = await Promise.all(remainingPageNumbers.map((p) => this.api.getJsonChapterApi(sourceManga.mangaId, p, this.cookieStorageInterceptor)));
-			const allItems = [...firstPage.result.items, ...remainingPages.flatMap((r) => r.result.items)];
-			return this.parser.parseChapters(sourceManga, allItems);
+		async getChapters(sourceManga, sinceDate) {
+			const [, buffer] = await Application.scheduleRequest({
+				url: this.buildMangaUrl(sourceManga.mangaId),
+				method: "GET"
+			});
+			return this.parser.parseChapterList(Application.arrayBufferToUTF8String(buffer), sourceManga);
 		}
 		async getChapterDetails(chapter) {
-			const pages = await this.api.getJsonChapPagesApi(chapter, this.cookieStorageInterceptor);
-			return this.parser.parseChapterDetails(chapter.chapterId, pages);
+			const [, buffer] = await Application.scheduleRequest({
+				url: new URL$1(DOMAIN).addPathComponent("mangas").addPathComponent(chapter.sourceManga.mangaId).addPathComponent(chapter.chapterId).toString(),
+				method: "GET"
+			});
+			return this.parser.parseChapterDetails(Application.arrayBufferToUTF8String(buffer), chapter);
+		}
+		async fetchCatalogue() {
+			const [, buffer] = await Application.scheduleRequest({
+				url: new URL$1(DOMAIN).addPathComponent("mangas").toString(),
+				method: "GET"
+			});
+			return this.parser.parseCatalogue(Application.arrayBufferToUTF8String(buffer));
+		}
+		buildMangaUrl(mangaId) {
+			return new URL$1(DOMAIN).addPathComponent("mangas").addPathComponent(mangaId).toString();
 		}
 	};
-	const Comix = new ComixExtension();
+	const PunkRecords = new PunkRecordsExtension();
 
 //#endregion
 //#region node_modules/chai/index.js
@@ -20197,10 +18451,10 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 	};
 
 //#endregion
-//#region src/tests/Comix.ts
+//#region src/tests/PunkRecords.ts
 	async function runTests(logger) {
-		const suite = new TestSuite("Comix tests", logger);
-		registerDefaultTests(suite, Comix, pbconfig_default);
+		const suite = new TestSuite("PunkRecords tests", logger);
+		registerDefaultTests(suite, PunkRecords, pbconfig_default);
 		await suite.run();
 	}
 
@@ -20208,4 +18462,4 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 exports.runTests = runTests;
 return exports;
 })({});
-//# sourceMappingURL=Comix.js.map
+//# sourceMappingURL=PunkRecords.js.map
