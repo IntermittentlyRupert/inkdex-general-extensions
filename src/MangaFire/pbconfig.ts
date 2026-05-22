@@ -4,23 +4,24 @@
 import { ContentRating, SourceIntents, type ExtensionInfo } from "@paperback/types";
 
 export default {
-  name: "PunkRecords",
-  description: "Extension pour récupérer le contenu de punkrecordz.com.",
-  version: "1.0.0-alpha.2",
+  name: "MangaFire",
+  description: "Extension that pulls content from mangafire.to.",
+  version: "1.0.0-alpha.13",
   icon: "icon.png",
-  language: "fr",
+  language: "multi",
   contentRating: ContentRating.EVERYONE,
   capabilities: [
-    SourceIntents.CHAPTER_PROVIDING,
     SourceIntents.DISCOVER_SECTION_PROVIDING,
     SourceIntents.SEARCH_RESULT_PROVIDING,
+    SourceIntents.CHAPTER_PROVIDING,
     SourceIntents.SETTINGS_FORM_PROVIDING,
   ],
   badges: [],
   developers: [
     {
-      name: "Finebouche",
-      github: "https://github.com/Finebouche",
+      name: "Inkdex",
+      website: "https://inkdex.github.io",
+      github: "https://github.com/inkdex",
     },
   ],
 } satisfies ExtensionInfo;
