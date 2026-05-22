@@ -108,6 +108,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	};
 
 //#endregion
+//#region node_modules/@paperback/types/lib/impl/Selector.js
+	function closureSelector(base, closureId, closure) {
+		base["__closure_selector-" + closureId] = closure;
+		return Application.Selector(base, "__closure_selector-" + closureId);
+	}
+
+//#endregion
 //#region node_modules/@paperback/types/lib/impl/SettingsUI/FormSection.js
 	function Section(params, items) {
 		let info;
@@ -122,9 +129,135 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			allowReorder: false
 		};
 	}
+	function FlowSection(params, items) {
+		let info;
+		if (typeof params === "string") info = { id: params };
+		else info = params;
+		return {
+			type: "flowSection",
+			...info,
+			items: items.filter((x) => x)
+		};
+	}
+	function SelectSection(form, params) {
+		if (params.maxItemCount < 1) throw new Error(`[${params.id}] maxItemCount must not be less than one`);
+		if (params.minItemCount < 0) throw new Error(`[${params.id}] minItemCount must not be less than zero`);
+		if (params.minItemCount >= params.maxItemCount && params.maxItemCount > 1) throw new Error(`[${params.id}] minItemCount must be less than maxItemCount, or both must be one`);
+		if (params.value.length < params.minItemCount) throw new Error(`[${params.id}] value count must not be less than minItemCount`);
+		if (!params.value.every((item) => params.items.some((option) => option.id === item))) throw new Error(`[${params.id}] All provided values must be inside items`);
+		const selectedOptionsLength = Object.keys(params.value).length;
+		return (params.layout == "flow" ? FlowSection : Section)({
+			id: params.id,
+			header: params.header,
+			footer: params.footer
+		}, params.items.map((item) => {
+			const selectedIndex = params.value.indexOf(item.id);
+			const isSelected = selectedIndex !== -1;
+			return LabelRow(item.id, {
+				title: item.title,
+				value: isSelected ? {
+					symbol: "checkmark",
+					style: "success"
+				} : void 0,
+				onSelect: closureSelector(form, `__select_${params.id}#${item.id}`, async () => {
+					if (isSelected) {
+						if (selectedOptionsLength > params.minItemCount) params.value.splice(selectedIndex, 1);
+					} else if (params.maxItemCount == 1) params.value.splice(0, params.value.length, item.id);
+					else if (selectedOptionsLength < params.maxItemCount) params.value.push(item.id);
+					else return;
+					if (params.onValueChange) await Application.SelectorRegistry.selector(params.onValueChange)();
+					form.reloadForm();
+				})
+			});
+		}));
+	}
+	function TriStateSelectSection(form, params) {
+		const selectedOptionsLength = Object.keys(params.value).length;
+		return (params.layout == "flow" ? FlowSection : Section)({
+			id: params.id,
+			header: params.header,
+			footer: params.footer
+		}, params.items.map((item) => {
+			const currentState = params.value[item.id];
+			let value;
+			let style;
+			switch (currentState) {
+				case "included":
+					if (params.layout == "flow") {
+						style = "success";
+						value = void 0;
+					} else {
+						style = void 0;
+						value = {
+							symbol: "checkmark",
+							style: "success"
+						};
+					}
+					break;
+				case "excluded":
+					if (params.layout == "flow") {
+						style = "error";
+						value = void 0;
+					} else {
+						style = void 0;
+						value = {
+							symbol: "xmark",
+							style: "error"
+						};
+					}
+					break;
+				default:
+					value = void 0;
+					style = void 0;
+					break;
+			}
+			return LabelRow(item.id, {
+				style,
+				title: item.title,
+				value,
+				onSelect: closureSelector(form, `__multiselect_${params.id}#${item.id}`, async () => {
+					let nextState;
+					const canSelect = !params.maximum || selectedOptionsLength < params.maximum;
+					const canDeselect = params.allowEmptySelection && selectedOptionsLength == 1 || selectedOptionsLength > 1;
+					switch (currentState) {
+						case "included":
+							if (params.allowExclusion) {
+								nextState = "excluded";
+								break;
+							}
+							if (canDeselect) {
+								nextState = void 0;
+								break;
+							} else return;
+						case "excluded": if (canDeselect) {
+							nextState = void 0;
+							break;
+						} else return;
+						case void 0: if (canSelect) {
+							nextState = "included";
+							break;
+						} else return;
+					}
+					if (nextState == void 0) delete params.value[item.id];
+					else params.value[item.id] = nextState;
+					if (params.onValueChange) await Application.SelectorRegistry.selector(params.onValueChange)();
+					form.reloadForm();
+				})
+			});
+		}));
+	}
 
 //#endregion
 //#region node_modules/@paperback/types/lib/impl/SettingsUI/FormItemElement.js
+	function LabelRow(id, props) {
+		return {
+			...props,
+			id,
+			type: "labelRow",
+			isHidden: props.isHidden ?? false,
+			isSelectable: props.onSelect != void 0
+		};
+	}
 	function ToggleRow(id, props) {
 		return {
 			...props,
@@ -133,6 +266,93 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			isHidden: props.isHidden ?? false
 		};
 	}
+	function SelectRow(id, props) {
+		const selectedItemsCount = Object.keys(props.value).length;
+		return NavigationRow(id, {
+			form: new SelectForm(props.title, props),
+			title: props.title,
+			subtitle: props.subtitle,
+			value: selectedItemsCount == 1 ? `${("items" in props ? props.items.find((x) => x.id == props.value[0])?.title : props.options.find((x) => x.id == props.value[0])?.title) ?? "1 item"}` : `${Object.keys(props.value).length} items`,
+			isHidden: props.isHidden
+		});
+	}
+	function TriStateSelectRow(id, props) {
+		return NavigationRow(id, {
+			form: new TriStateSelectForm(props.title, props),
+			title: props.title,
+			subtitle: props.subtitle,
+			value: `${Object.keys(props.value).length} items`,
+			isHidden: props.isHidden
+		});
+	}
+	function ButtonRow(id, props) {
+		return {
+			...props,
+			id,
+			type: "buttonRow",
+			isHidden: props.isHidden ?? false
+		};
+	}
+	function NavigationRow(id, props) {
+		return {
+			...props,
+			id,
+			type: "navigationRow",
+			isHidden: props.isHidden ?? false
+		};
+	}
+	var SelectForm = class extends Form {
+		constructor(title, params) {
+			super();
+			_defineProperty(this, "title", void 0);
+			_defineProperty(this, "params", void 0);
+			_defineProperty(this, "states", []);
+			_defineProperty(this, "requiresExplicitSubmission", true);
+			this.title = title;
+			this.params = params;
+			this.states = [...params.value];
+		}
+		getSections() {
+			return [SelectSection(this, {
+				id: "select",
+				value: this.states,
+				layout: "layout" in this.params ? this.params.layout : "list",
+				items: "items" in this.params ? this.params.items : this.params.options,
+				minItemCount: this.params.minItemCount,
+				maxItemCount: this.params.maxItemCount,
+				isHidden: this.params.isHidden
+			})];
+		}
+		async formDidSubmit() {
+			await Application.SelectorRegistry.selector(this.params.onValueChange)(this.states);
+		}
+	};
+	var TriStateSelectForm = class extends Form {
+		constructor(title, params) {
+			super();
+			_defineProperty(this, "title", void 0);
+			_defineProperty(this, "params", void 0);
+			_defineProperty(this, "states", {});
+			_defineProperty(this, "requiresExplicitSubmission", true);
+			this.title = title;
+			this.params = params;
+			this.states = { ...params.value };
+		}
+		getSections() {
+			return [TriStateSelectSection(this, {
+				id: "multiselect",
+				value: this.states,
+				items: this.params.items,
+				allowExclusion: this.params.allowExclusion,
+				allowEmptySelection: this.params.allowEmptySelection,
+				maximum: this.params.maximum,
+				layout: this.params.layout
+			})];
+		}
+		async formDidSubmit() {
+			await Application.SelectorRegistry.selector(this.params.onValueChange)(this.states);
+		}
+	};
 
 //#endregion
 //#region node_modules/@paperback/types/lib/impl/interfaces/ChapterProviding.js
@@ -145,6 +365,21 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	function implementsSearchResultsProviding(extension) {
 		return hasPropertiesOf(["getSearchResults"], extension);
 	}
+	var AdvancedSearchForm = class extends Form {
+		constructor(..._args) {
+			super(..._args);
+			_defineProperty(
+				this,
+				/**
+				* This is always true
+				*/
+				"requiresExplicitSubmission",
+				true
+			);
+		}
+		async formDidSubmit() {}
+		formDidCancel() {}
+	};
 
 //#endregion
 //#region node_modules/@paperback/types/lib/impl/interfaces/index.js
@@ -222,6 +457,22 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					this.promise = Application.sleep(sleepTime);
 				}
 			}
+		}
+	};
+
+//#endregion
+//#region node_modules/@paperback/types/lib/impl/CloudflareError.js
+/**
+	* The app catches this request and displays a banner at the top that initiates cloudflare bypass
+	*
+	* NOTE: You must have {@link SourceIntents.CLOUDFLARE_BYPASS_PROVIDING} for this to work
+	*/
+	var CloudflareError = class extends Error {
+		constructor(resolutionRequest, message = "Cloudflare bypass is required") {
+			super(message);
+			_defineProperty(this, "resolutionRequest", void 0);
+			_defineProperty(this, "type", "cloudflareError");
+			this.resolutionRequest = resolutionRequest;
 		}
 	};
 
@@ -459,6 +710,264 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	};
 
 //#endregion
+//#region node_modules/@paperback/types/lib/impl/CookieStorageInterceptor.js
+	const cookieStateKey = "cookie_store_cookies";
+	var CookieStorageInterceptor = class extends PaperbackInterceptor {
+		get cookies() {
+			return Object.freeze(Object.values(this._cookies));
+		}
+		set cookies(newValue) {
+			const cookies = {};
+			for (const cookie of newValue) {
+				if (this.isCookieExpired(cookie)) continue;
+				cookies[this.cookieIdentifier(cookie)] = cookie;
+			}
+			this._cookies = cookies;
+			this.saveCookiesToStorage();
+		}
+		constructor(options) {
+			super("cookie_store");
+			_defineProperty(this, "options", void 0);
+			_defineProperty(this, "_cookies", {});
+			this.options = options;
+			this.loadCookiesFromStorage();
+		}
+		async interceptRequest(request) {
+			request.cookies = {
+				...request.cookies ?? {},
+				...this.cookiesForUrl(request.url).reduce((v, c) => {
+					v[c.name] = c.value;
+					return v;
+				}, {})
+			};
+			return request;
+		}
+		async interceptResponse(request, response, data) {
+			const cookies = this._cookies;
+			for (const cookie of response.cookies) {
+				const identifier = this.cookieIdentifier(cookie);
+				if (this.isCookieExpired(cookie)) {
+					delete cookies[identifier];
+					continue;
+				}
+				cookies[identifier] = cookie;
+			}
+			this._cookies = cookies;
+			this.saveCookiesToStorage();
+			return data;
+		}
+		setCookie(cookie) {
+			if (this.isCookieExpired(cookie)) return;
+			this._cookies[this.cookieIdentifier(cookie)] = cookie;
+			this.saveCookiesToStorage();
+		}
+		deleteCookie(cookie) {
+			delete this._cookies[this.cookieIdentifier(cookie)];
+		}
+		cookiesForUrl(urlString) {
+			const url = new URL$1(urlString);
+			const hostname = url.hostname;
+			if (!hostname) return [];
+			const matchedCookies = {};
+			const pathname = url.path.startsWith("/") ? url.path : `/${url.path}`;
+			const splitHostname = hostname.split(".");
+			const splitUrlPath = pathname.split("/");
+			splitUrlPath.shift();
+			const cookies = this.cookies;
+			for (const cookie of cookies) {
+				if (this.isCookieExpired(cookie)) {
+					delete this._cookies[this.cookieIdentifier(cookie)];
+					continue;
+				}
+				const splitCookieDomain = this.cookieSanitizedDomain(cookie).split(".");
+				if (splitHostname.length < splitCookieDomain.length || splitCookieDomain.length == 0) continue;
+				let cookieDomainMatches = true;
+				for (let i = 0; i < splitCookieDomain.length; i++) {
+					const splitCookieIndex = splitCookieDomain.length - 1 - i;
+					const splitHostnameIndex = splitHostname.length - 1 - i;
+					if (splitCookieDomain[splitCookieIndex] != splitHostname[splitHostnameIndex]) {
+						cookieDomainMatches = false;
+						break;
+					}
+				}
+				if (!cookieDomainMatches) continue;
+				const cookiePath = this.cookieSanitizedPath(cookie);
+				const splitCookiePath = cookiePath.split("/");
+				splitCookiePath.shift();
+				let pathMatches = 0;
+				if (pathname === cookiePath) pathMatches = Number.MAX_SAFE_INTEGER;
+				else if (splitCookiePath.length === 0 || cookiePath === "/") pathMatches = 1;
+				else if (pathname.startsWith(cookiePath) && splitUrlPath.length >= splitCookiePath.length) for (let i = 0; i < splitCookiePath.length; i++) if (splitCookiePath[i] === splitUrlPath[i]) pathMatches += 1;
+				else break;
+				if (pathMatches <= 0) continue;
+				if ((matchedCookies[cookie.name]?.pathMatches ?? 0) < pathMatches) matchedCookies[cookie.name] = {
+					cookie,
+					pathMatches
+				};
+			}
+			return Object.values(matchedCookies).map((x) => x.cookie);
+		}
+		cookieIdentifier(cookie) {
+			return `${cookie.name}-${this.cookieSanitizedDomain(cookie)}-${this.cookieSanitizedPath(cookie)}`;
+		}
+		cookieSanitizedPath(cookie) {
+			return cookie.path?.startsWith("/") ? cookie.path : "/" + (cookie.path ?? "");
+		}
+		cookieSanitizedDomain(cookie) {
+			return cookie.domain.replace(/^(www)?\.?/gi, "").toLowerCase();
+		}
+		isCookieExpired(cookie) {
+			if (cookie.expires && cookie.expires.getTime() <= Date.now()) return true;
+			else return false;
+		}
+		loadCookiesFromStorage() {
+			if (this.options.storage == "memory") return;
+			const cookieData = Application.getState(cookieStateKey);
+			if (!cookieData) {
+				this._cookies = {};
+				return;
+			}
+			const cookies = {};
+			for (const cookie of cookieData) {
+				if (!cookie.expires || this.isCookieExpired(cookie)) continue;
+				cookies[this.cookieIdentifier(cookie)] = cookie;
+			}
+			this._cookies = cookies;
+		}
+		saveCookiesToStorage() {
+			if (this.options.storage == "memory") return;
+			Application.setState(this.cookies.filter((x) => x.expires), cookieStateKey);
+		}
+	};
+	/**
+	*
+	*  Test cases for testing cookies are behaving as expected
+	*
+	
+	function assert(a: boolean, msg: string) {
+	if(!a) {
+	throw msg
+	}
+	}
+	
+	(function runTests() {
+	const cookieStorage = new CookieStorageInterceptor();
+	const now = Date.now();
+	
+	// Test 1: Basic set and retrieval
+	const cookie1: Cookie = {
+	name: "sessionId",
+	value: "abc123",
+	domain: "example.com",
+	path: "/",
+	expires: new Date(now + 10000) // expires in 10 seconds
+	};
+	cookieStorage.setCookie(cookie1);
+	let cookies = cookieStorage.cookiesForUrl("http://example.com/");
+	assert(cookies.length === 1, "Should retrieve one cookie for example.com root");
+	
+	// Test 2: Domain matching with subdomain (RFC 6265: domain-match)
+	const cookie2: Cookie = {
+	name: "user",
+	value: "john",
+	domain: "example.com",
+	path: "/",
+	expires: new Date(now + 10000)
+	};
+	cookieStorage.setCookie(cookie2);
+	cookies = cookieStorage.cookiesForUrl("http://www.example.com/");
+	assert(
+	cookies.some(c => c.name === "user"),
+	"Cookie with domain example.com should match www.example.com"
+	);
+	
+	// Test 3: Path matching
+	const cookie3: Cookie = {
+	name: "pref",
+	value: "dark",
+	domain: "example.com",
+	path: "/docs",
+	expires: new Date(now + 10000)
+	};
+	cookieStorage.setCookie(cookie3);
+	cookies = cookieStorage.cookiesForUrl("http://example.com/docs/index.html");
+	assert(
+	cookies.some(c => c.name === "pref"),
+	"Cookie with path /docs should match /docs/index.html"
+	);
+	cookies = cookieStorage.cookiesForUrl("http://example.com/about");
+	assert(
+	!cookies.some(c => c.name === "pref"),
+	"Cookie with path /docs should not match /about"
+	);
+	
+	// Test 4: Expired cookie should not be stored or returned
+	const cookie4: Cookie = {
+	name: "expired",
+	value: "old",
+	domain: "example.com",
+	path: "/",
+	expires: new Date(now - 10000) // expired 10 seconds ago
+	};
+	cookieStorage.setCookie(cookie4);
+	cookies = cookieStorage.cookiesForUrl("http://example.com/");
+	assert(
+	!cookies.some(c => c.name === "expired"),
+	"Expired cookie should not be returned"
+	);
+	
+	// Test 5: Cookie overwriting based on path specificity
+	// Cookie with name "id" and path "/" (less specific)
+	const cookieA: Cookie = {
+	name: "id",
+	value: "A",
+	domain: "example.com",
+	path: "/",
+	expires: new Date(now + 10000)
+	};
+	// Cookie with the same name but a more specific path "/docs"
+	const cookieB: Cookie = {
+	name: "id",
+	value: "B",
+	domain: "example.com",
+	path: "/docs",
+	expires: new Date(now + 10000)
+	};
+	cookieStorage.setCookie(cookieA);
+	cookieStorage.setCookie(cookieB);
+	cookies = cookieStorage.cookiesForUrl("http://example.com/docs");
+	const cookieId = cookies.find(c => c.name === "id");
+	assert(
+	cookieId?.value === "B",
+	"More specific cookie should be returned for URL /docs"
+	);
+	
+	// Test 6: Deleting a cookie
+	cookieStorage.deleteCookie(cookieB);
+	cookies = cookieStorage.cookiesForUrl("http://example.com/docs");
+	const cookieIdAfterDelete = cookies.find(c => c.name === "id");
+	assert(
+	cookieIdAfterDelete?.value === "A",
+	"After deletion of the specific cookie, the less specific cookie should be returned"
+	);
+	
+	// Test 7: Using the cookies setter (expired cookies filtered out)
+	cookieStorage.cookies = [cookie1, cookie4]; // cookie4 is expired
+	const storedCookies = cookieStorage.cookies;
+	assert(
+	storedCookies.some(c => c.name === "sessionId"),
+	"sessionId cookie should be stored via setter"
+	);
+	assert(
+	!storedCookies.some(c => c.name === "expired"),
+	"Expired cookie should be filtered out in the setter"
+	);
+	
+	console.log("All tests passed successfully.");
+	})();
+	*/
+
+//#endregion
 //#region node_modules/@paperback/types/lib/impl/SourceInfo.js
 	var SourceIntents;
 	(function(SourceIntents) {
@@ -538,50 +1047,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		items: [],
 		metadata: void 0
 	});
-
-//#endregion
-//#region src/PunkRecords/models.ts
-	const DOMAIN = "https://punkrecordz.com";
-	const API_DOMAIN = "https://api.punkrecordz.com";
-	const PUNK_RECORDS_SECTIONS = {
-		LATEST: "latest",
-		CATALOGUE: "catalogue"
-	};
-	const PUNK_RECORDS_STATE_KEYS = { ShowCatalogueOnHome: "punk_records_show_catalogue_on_home" };
-
-//#endregion
-//#region src/PunkRecords/forms.ts
-	var PunkRecordsSettingsForm = class extends Form {
-		getSections() {
-			return [Section("browse", [ToggleRow("show-catalogue-on-home", {
-				title: "Afficher le catalogue sur l'accueil",
-				subtitle: "Desactivez-le si la page d'accueil devient trop lourde a charger.",
-				value: Application.getState(PUNK_RECORDS_STATE_KEYS.ShowCatalogueOnHome) !== false,
-				onValueChange: Application.Selector(this, "handleShowCatalogueOnHomeChange")
-			})])];
-		}
-		async handleShowCatalogueOnHomeChange(value) {
-			Application.setState(value, PUNK_RECORDS_STATE_KEYS.ShowCatalogueOnHome);
-			Application.invalidateDiscoverSections();
-		}
-	};
-
-//#endregion
-//#region src/PunkRecords/network.ts
-	var MainInterceptor = class extends PaperbackInterceptor {
-		async interceptRequest(request) {
-			return {
-				...request,
-				headers: {
-					...request.headers,
-					referer: `${DOMAIN}/`
-				}
-			};
-		}
-		async interceptResponse(request, response, data) {
-			return data;
-		}
-	};
 
 //#endregion
 //#region node_modules/domelementtype/lib/esm/index.js
@@ -15063,268 +15528,932 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 	const load = getLoad(parse, (dom, options) => options._useHtmlParser2 ? render$1(dom, options) : renderWithParse5(dom));
 
 //#endregion
-//#region src/PunkRecords/parsers.ts
-	const FALLBACK_THUMBNAIL = "icon.png";
-	var PunkRecordsParser = class {
-		buildDiscoverSections(showCatalogueOnHome) {
-			const sections = [{
-				id: "latest",
-				title: "Dernieres sorties",
-				type: DiscoverSectionType.featured
-			}];
-			if (showCatalogueOnHome) sections.push({
-				id: "catalogue",
-				title: "Catalogue",
-				type: DiscoverSectionType.simpleCarousel
-			});
-			return sections;
+//#region src/MangaFire/models.ts
+	const DOMAIN = "https://mangafire.to";
+	const CDN_PREFIXES = [
+		"k99",
+		"l1n",
+		"m3z",
+		"nw8",
+		"o48"
+	];
+	const CDN_HOST_REGEX = /^(https?:\/\/)([a-z0-9]{3})(\.mfcdn[0-9]+\.xyz)/;
+	const BROKEN_CDN_PREFIXES_KEY = "broken_cdn_prefixes";
+	const SEARCH_DETAILS_CACHE_KEY = "search_details_cache";
+	const VRF_SEARCH_CACHE_KEY = "search_vrf_cache";
+	const VRF_CHAPTER_CACHE_KEY = "chapter_vrf_cache";
+	const LANGUAGES = [
+		{
+			title: "🇬🇧 English",
+			id: "en"
+		},
+		{
+			title: "🇪🇸 Español",
+			id: "es"
+		},
+		{
+			title: "🇲🇽 Español (Latinoamérica)",
+			id: "es-la"
+		},
+		{
+			title: "🇫🇷 Français",
+			id: "fr"
+		},
+		{
+			title: "🇵🇹 Português",
+			id: "pt"
+		},
+		{
+			title: "🇧🇷 Português (Brasil)",
+			id: "pt-br"
+		},
+		{
+			title: "🇯🇵 日本語",
+			id: "ja"
 		}
-		buildDiscoverItems(sectionId, catalogue, homeHtml) {
-			if (sectionId === "latest") return this.extractLatestUpdatedMangaIds(load(homeHtml)).map((mangaId) => catalogue.find((entry) => entry.mangaId === mangaId)).filter((entry) => entry !== void 0).map((entry) => this.toDiscoverItem(entry, "featuredCarouselItem"));
-			return catalogue.map((entry) => this.toDiscoverItem(entry, "simpleCarouselItem"));
+	];
+
+//#endregion
+//#region src/MangaFire/utils/cache.ts
+	const CACHE_MAX_ENTRIES = 20;
+	const CACHE_TTL_MS = 1440 * 60 * 1e3;
+	function readCache(stateKey) {
+		return Application.getState(stateKey) ?? {};
+	}
+	function cacheGet(stateKey, key) {
+		const entry = readCache(stateKey)[key];
+		if (!entry) return void 0;
+		if (entry.expiresAt < Date.now()) return;
+		return entry.value;
+	}
+	function cacheClear(stateKey) {
+		Application.setState(void 0, stateKey);
+	}
+	function cacheSet(stateKey, key, value) {
+		const cache = readCache(stateKey);
+		const now = Date.now();
+		for (const k of Object.keys(cache)) if (cache[k].expiresAt < now) delete cache[k];
+		cache[key] = {
+			value,
+			expiresAt: now + CACHE_TTL_MS
+		};
+		const keys = Object.keys(cache);
+		if (keys.length > CACHE_MAX_ENTRIES) {
+			keys.sort((a, b) => cache[a].expiresAt - cache[b].expiresAt);
+			for (let i = 0; i < keys.length - CACHE_MAX_ENTRIES; i++) delete cache[keys[i]];
 		}
-		buildSearchResults(catalogue, query) {
-			const search = this.normalizeString(query);
-			return catalogue.filter((entry) => !search || this.normalizeString(entry.title).includes(search)).map((entry) => ({
-				mangaId: entry.mangaId,
-				title: entry.title,
-				imageUrl: entry.image,
-				contentRating: ContentRating.EVERYONE
+		Application.setState(cache, stateKey);
+	}
+
+//#endregion
+//#region src/MangaFire/forms.ts
+	var MangaFireAdvancedSearchForm = class extends AdvancedSearchForm {
+		constructor(searchQuery, searchDetails) {
+			super();
+			_defineProperty(this, "genres", void 0);
+			_defineProperty(this, "genreMode", void 0);
+			_defineProperty(this, "type", void 0);
+			_defineProperty(this, "status", void 0);
+			_defineProperty(this, "language", void 0);
+			_defineProperty(this, "year", void 0);
+			_defineProperty(this, "length", void 0);
+			_defineProperty(this, "genreOptions", void 0);
+			_defineProperty(this, "typeOptions", void 0);
+			_defineProperty(this, "statusOptions", void 0);
+			_defineProperty(this, "languageOptions", void 0);
+			_defineProperty(this, "yearOptions", void 0);
+			_defineProperty(this, "lengthOptions", void 0);
+			const toTags = (options) => (options ?? []).map((option) => ({
+				id: option.id,
+				title: option.label
 			}));
+			this.genreOptions = toTags(searchDetails?.genres);
+			this.typeOptions = toTags(searchDetails?.types);
+			this.statusOptions = toTags(searchDetails?.status);
+			this.languageOptions = toTags(searchDetails?.languages);
+			this.yearOptions = toTags(searchDetails?.years);
+			this.lengthOptions = toTags(searchDetails?.lengths);
+			const meta = searchQuery.metadata ?? {};
+			this.genres = { ...meta.genres };
+			this.genreMode = meta.genreMode ?? true;
+			this.type = meta.type ?? "";
+			this.status = meta.status ?? "";
+			this.language = meta.language ?? "";
+			this.year = meta.year ?? "";
+			this.length = meta.length ?? "";
 		}
-		parseMangaDetails(mangaId, html, fallbackEntry) {
-			const $ = load(html);
-			const primaryTitle = (this.extractTagContent($, "title") ?? fallbackEntry?.title ?? mangaId).replace(/\s+\|\s+Punk Records.*$/i, "").replace(/\s+-\s+Scan couleur$/i, "").trim();
-			const thumbnailUrl = this.extractMetaContent($, "property", "og:image") ?? fallbackEntry?.image ?? FALLBACK_THUMBNAIL;
-			const synopsis = this.extractMetaContent($, "name", "description") ?? "Aucune description disponible.";
-			const creator = this.extractMetaContent($, "name", "keywords")?.split(",").map((part) => part.trim()).filter((part) => /^[A-ZÀ-ÖØ-Þ][\p{L}.'-]+(?:\s+[A-ZÀ-ÖØ-Þ][\p{L}.'-]+)+$/u.test(part)).at(-1);
-			return {
-				mangaId,
-				mangaInfo: {
-					thumbnailUrl,
-					synopsis,
-					primaryTitle,
-					secondaryTitles: [],
-					contentRating: ContentRating.EVERYONE,
-					author: creator,
-					artist: creator,
-					status: "Ongoing",
-					additionalInfo: { format: "Scan couleur" },
-					artworkUrls: [thumbnailUrl]
-				}
-			};
+		getSections() {
+			return [
+				Section("genres", [TriStateSelectRow("genres", {
+					title: "Genres",
+					layout: "flow",
+					value: this.genres,
+					items: this.genreOptions,
+					allowExclusion: true,
+					allowEmptySelection: true,
+					onValueChange: Application.Selector(this, "handleGenresChange")
+				}), ToggleRow("genre_mode", {
+					title: "Genre Mode",
+					subtitle: "Title must have all genres selected.",
+					value: this.genreMode,
+					onValueChange: Application.Selector(this, "handleGenreModeChange")
+				})]),
+				Section("type", [SelectRow("type", {
+					title: "Type",
+					value: this.type ? [this.type] : [],
+					options: this.typeOptions,
+					minItemCount: 0,
+					maxItemCount: 1,
+					onValueChange: Application.Selector(this, "handleTypeChange")
+				})]),
+				Section("status", [SelectRow("status", {
+					title: "Status",
+					value: this.status ? [this.status] : [],
+					options: this.statusOptions,
+					minItemCount: 0,
+					maxItemCount: 1,
+					onValueChange: Application.Selector(this, "handleStatusChange")
+				})]),
+				Section("language", [SelectRow("language", {
+					title: "Language",
+					value: this.language ? [this.language] : [],
+					options: this.languageOptions,
+					minItemCount: 0,
+					maxItemCount: 1,
+					onValueChange: Application.Selector(this, "handleLanguageChange")
+				})]),
+				Section("year", [SelectRow("year", {
+					title: "Year",
+					value: this.year ? [this.year] : [],
+					options: this.yearOptions,
+					minItemCount: 0,
+					maxItemCount: 1,
+					onValueChange: Application.Selector(this, "handleYearChange")
+				})]),
+				Section("length", [SelectRow("length", {
+					title: "Length",
+					value: this.length ? [this.length] : [],
+					options: this.lengthOptions,
+					minItemCount: 0,
+					maxItemCount: 1,
+					onValueChange: Application.Selector(this, "handleLengthChange")
+				})])
+			];
 		}
-		parseChapterList(html, sourceManga) {
-			const $ = load(html);
-			const chapters = [];
-			const seen = /* @__PURE__ */ new Set();
-			$(`a[href^="/mangas/${sourceManga.mangaId}/"]`).each((_, element) => {
-				const chapterId = ($(element).attr("href") ?? "").split("/").filter(Boolean)[2]?.trim();
-				const title = $(element).text().trim();
-				if (!chapterId || seen.has(chapterId)) return;
-				chapters.push({
-					chapterId,
-					sourceManga,
-					langCode: "FR",
-					chapNum: this.extractChapterNumber(chapterId, title),
-					title: title || void 0
+		async handleGenresChange(value) {
+			this.genres = value;
+		}
+		async handleGenreModeChange(value) {
+			this.genreMode = value;
+		}
+		async handleTypeChange(value) {
+			this.type = value[0] ?? "";
+		}
+		async handleStatusChange(value) {
+			this.status = value[0] ?? "";
+		}
+		async handleLanguageChange(value) {
+			this.language = value[0] ?? "";
+		}
+		async handleYearChange(value) {
+			this.year = value[0] ?? "";
+		}
+		async handleLengthChange(value) {
+			this.length = value[0] ?? "";
+		}
+		getSearchQueryMetadata() {
+			const result = {};
+			if (Object.keys(this.genres).length > 0) result.genres = this.genres;
+			if (this.genreMode) result.genreMode = this.genreMode;
+			if (this.type) result.type = this.type;
+			if (this.status) result.status = this.status;
+			if (this.language) result.language = this.language;
+			if (this.year) result.year = this.year;
+			if (this.length) result.length = this.length;
+			return result;
+		}
+	};
+	function getLanguages() {
+		return Application.getState("languages") ?? [LANGUAGES[0].id];
+	}
+	function getBrokenCdnPrefixes() {
+		return Application.getState("broken_cdn_prefixes") ?? [];
+	}
+	var MangaFireSettingsForm = class extends Form {
+		constructor() {
+			super();
+			_defineProperty(this, "languages", void 0);
+			_defineProperty(this, "brokenCdnPrefixes", void 0);
+			_defineProperty(this, "isTestingCdns", false);
+			this.languages = getLanguages();
+			this.brokenCdnPrefixes = getBrokenCdnPrefixes();
+		}
+		getSections() {
+			return [
+				Section({
+					id: "languageContent",
+					footer: "Filter chapters by language. At least one language must be selected."
+				}, [SelectRow("languages", {
+					title: "Languages",
+					subtitle: this.languages.map((langCode) => LANGUAGES.find((l) => l.id === langCode)?.title ?? "Unknown").sort().join(", "),
+					value: this.languages,
+					options: LANGUAGES,
+					minItemCount: 1,
+					maxItemCount: LANGUAGES.length,
+					onValueChange: Application.Selector(this, "updateLanguages")
+				})]),
+				Section({
+					id: "cdn",
+					footer: "If chapter images fail to load, test the CDNs. Broken CDNs will be swapped to a working one when fetching images."
+				}, [LabelRow("cdnStatus", {
+					title: "Status",
+					value: this.isTestingCdns ? "Loading..." : this.brokenCdnPrefixes.length === 0 ? "All known CDNs healthy" : `Broken: ${this.brokenCdnPrefixes.join(", ")}`
+				}), ButtonRow("testCdns", {
+					title: "Test CDNs",
+					onSelect: Application.Selector(this, "testCdns")
+				})]),
+				Section({
+					id: "cache",
+					footer: "Clear cached data if search filters appear stale or the source returns errors."
+				}, [ButtonRow("clearSearchFilterCache", {
+					title: "Clear Search Filter Cache",
+					onSelect: Application.Selector(this, "clearSearchFilterCache")
+				}), ButtonRow("clearVrfCache", {
+					title: "Clear VRF Cache",
+					onSelect: Application.Selector(this, "clearVrfCache")
+				})])
+			];
+		}
+		async updateLanguages(value) {
+			this.languages = value;
+			Application.setState(value, "languages");
+		}
+		async testCdns() {
+			Application.setState([], BROKEN_CDN_PREFIXES_KEY);
+			this.isTestingCdns = true;
+			this.reloadForm();
+			const broken = [];
+			await Promise.all(CDN_PREFIXES.map(async (prefix) => {
+				const [response] = await Application.scheduleRequest({
+					url: `https://${prefix}.mfcdn3.xyz`,
+					method: "GET"
 				});
-				seen.add(chapterId);
-			});
-			if (!chapters.length) throw new Error(`Couldn't find any chapters for mangaId: ${sourceManga.mangaId}!`);
-			return chapters;
+				if (response.status >= 500) broken.push(prefix);
+			}));
+			Application.setState(broken, BROKEN_CDN_PREFIXES_KEY);
+			this.brokenCdnPrefixes = broken;
+			this.isTestingCdns = false;
+			this.reloadForm();
 		}
-		parseChapterDetails(html, chapter) {
-			const $ = load(html);
-			const pages = [];
-			const seen = /* @__PURE__ */ new Set();
-			$("img[alt*=\"-page-\"]").each((_, element) => {
-				const page = $(element).attr("src")?.trim();
-				if (!page || seen.has(page)) return;
-				if (!page.startsWith(`${"https://api.punkrecordz.com"}/images/`)) return;
-				pages.push(page);
-				seen.add(page);
-			});
-			if (!pages.length) throw new Error(`Couldn't find any pages for mangaId: ${chapter.sourceManga.mangaId} chapterId: ${chapter.chapterId}!`);
-			return {
-				id: chapter.chapterId,
-				mangaId: chapter.sourceManga.mangaId,
-				pages
-			};
+		async clearSearchFilterCache() {
+			cacheClear(SEARCH_DETAILS_CACHE_KEY);
 		}
-		parseCatalogue(html) {
-			const $ = load(html);
-			const scriptTexts = $("script").toArray().map((element) => $(element).text().trim()).filter((text) => text.length > 0);
-			const entries = this.parseCatalogueScripts(scriptTexts);
-			if (!entries.length) throw new Error("Couldn't parse the PunkRecords catalogue.");
-			return entries;
-		}
-		extractMetaContent($, attribute, key) {
-			return $(`meta[${attribute}="${key}"]`).attr("content")?.trim();
-		}
-		extractTagContent($, tagName) {
-			return $(tagName).first().text().trim() || void 0;
-		}
-		extractLatestUpdatedMangaIds($) {
-			return $("a[href^=\"/mangas/\"]").toArray().map((element) => ($(element).attr("href") ?? "").split("/").filter(Boolean)[1]).filter((mangaId) => Boolean(mangaId)).reduce((mangaIds, mangaId) => {
-				if (!mangaIds.includes(mangaId)) mangaIds.push(mangaId);
-				return mangaIds;
-			}, []);
-		}
-		/**
-		* PunkRecords exposes chapter labels in French ("Chapitre 12")
-		*/
-		extractChapterNumber(chapterId, title) {
-			const titleMatch = /chapitre\s+([\d.]+)/i.exec(title);
-			if (titleMatch?.[1]) return Number(titleMatch[1]);
-			const chapterMatch = /([\d.]+)/.exec(chapterId);
-			return chapterMatch?.[1] ? Number(chapterMatch[1]) : 0;
-		}
-		normalizeString(value) {
-			return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-		}
-		isPunkRecordsMangaRecord(value) {
-			return value.__typename === "Manga" && (!("name" in value) || typeof value.name === "string") && (!("slug" in value) || typeof value.slug === "string") && (!("thumb" in value) || typeof value.thumb === "string") && (!("published" in value) || typeof value.published === "boolean");
-		}
-		addCatalogueEntry(entries, seen, rawTitle, mangaId, thumb, published) {
-			if (!published || !rawTitle || !mangaId || !thumb || seen.has(mangaId)) return;
-			entries.push({
-				mangaId,
-				title: JSON.parse(`"${rawTitle}"`),
-				image: new URL$1(API_DOMAIN).addPathComponent("images").addPathComponent("webp").addPathComponent(`${thumb}.webp`).toString()
-			});
-			seen.add(mangaId);
-		}
-		walkCatalogueJson(value, entries, seen) {
-			if (Array.isArray(value)) {
-				for (const item of value) this.walkCatalogueJson(item, entries, seen);
-				return;
-			}
-			if (typeof value !== "object" || value === null || Array.isArray(value)) return;
-			const record = value;
-			if (this.isPunkRecordsMangaRecord(record)) this.addCatalogueEntry(entries, seen, record.name, record.slug, record.thumb, record.published !== false);
-			for (const child of Object.values(record)) this.walkCatalogueJson(child, entries, seen);
-		}
-		parseCatalogueScripts(scriptTexts) {
-			const entries = [];
-			const seen = /* @__PURE__ */ new Set();
-			for (const scriptText of scriptTexts) try {
-				this.walkCatalogueJson(JSON.parse(scriptText), entries, seen);
-			} catch {}
-			const normalizedScripts = scriptTexts.join("\n").replace(/\\"/g, "\"").replace(/\\\\u0026/g, "&").replace(/\\u0026/g, "&");
-			const mangaRegex = /"__typename":"Manga"[\s\S]{0,250}?"name":"((?:\\.|[^"\\])*)"[\s\S]{0,250}?"slug":"([^"]+)"[\s\S]{0,250}?"thumb":"([^"]+)"(?:[\s\S]{0,120}?"published":(true|false))?/g;
-			let match;
-			while ((match = mangaRegex.exec(normalizedScripts)) !== null) this.addCatalogueEntry(entries, seen, match[1], match[2], match[3], match[4] !== "false");
-			return entries;
-		}
-		toDiscoverItem(entry, type) {
-			return {
-				type,
-				mangaId: entry.mangaId,
-				title: entry.title,
-				imageUrl: entry.image,
-				contentRating: ContentRating.EVERYONE
-			};
+		async clearVrfCache() {
+			cacheClear(VRF_CHAPTER_CACHE_KEY);
+			cacheClear(VRF_SEARCH_CACHE_KEY);
 		}
 	};
 
 //#endregion
-//#region src/PunkRecords/pbconfig.ts
+//#region src/MangaFire/network.ts
+	var MangaFireInterceptor = class extends PaperbackInterceptor {
+		async interceptRequest(request) {
+			let url = request.url;
+			const match = url.match(CDN_HOST_REGEX);
+			if (match) {
+				const broken = getBrokenCdnPrefixes();
+				if (broken.includes(match[2])) {
+					const working = CDN_PREFIXES.find((p) => !broken.includes(p));
+					if (working) url = url.replace(CDN_HOST_REGEX, `$1${working}$3`);
+				}
+			}
+			return {
+				...request,
+				url,
+				headers: {
+					...request.headers,
+					referer: `${DOMAIN}/`,
+					"user-agent": await Application.getDefaultUserAgent()
+				}
+			};
+		}
+		async interceptResponse(request, response, data) {
+			if (response.headers?.["cf-mitigated"] === "challenge") throw new CloudflareError({
+				url: `${DOMAIN}/`,
+				method: request.method ?? "GET",
+				headers: { "user-agent": await Application.getDefaultUserAgent() }
+			});
+			return data;
+		}
+	};
+
+//#endregion
+//#region src/MangaFire/parsers.ts
+	const parseDropdownOptions = ($, selector, requireId = true) => {
+		const options = [];
+		$(selector).each((_, element) => {
+			const id = $(element).find("input").attr("value") ?? "";
+			const label = $(element).find("label").text().trim();
+			if (label && (!requireId || id)) options.push({
+				id,
+				label
+			});
+		});
+		return options;
+	};
+	const parseSearchDetails = ($) => {
+		return {
+			types: parseDropdownOptions($, ".dropdown:has(button .value[data-placeholder='Type']) .dropdown-menu.noclose.c1 li", false),
+			genres: parseDropdownOptions($, ".genres li"),
+			status: parseDropdownOptions($, ".dropdown:has(button .value[data-placeholder='Status']) .dropdown-menu.noclose.c1 li"),
+			languages: parseDropdownOptions($, ".dropdown:has(button .value[data-placeholder='Language']) .dropdown-menu.noclose.c1 li"),
+			years: parseDropdownOptions($, ".dropdown:has(button .value[data-placeholder='Year']) .dropdown-menu.noclose.md.c3 li"),
+			lengths: parseDropdownOptions($, ".dropdown:has(button .value[data-placeholder='Length']) .dropdown-menu.noclose.c1 li"),
+			sorts: parseDropdownOptions($, ".dropdown:has(button .value[data-placeholder='Sort by']) .dropdown-menu.noclose.c1 li")
+		};
+	};
+	const parseSearch = ($) => {
+		const searchResults = [];
+		$(".original.card-lg .unit .inner").each((_, element) => {
+			const unit = $(element);
+			const infoLink = unit.find(".info > a");
+			const title = infoLink.text().trim();
+			const image = unit.find("img").attr("src") || "";
+			const mangaId = infoLink.attr("href")?.replace("/manga/", "") || "";
+			const latestChapterMatch = unit.find(".content[data-name='chap'] a").first().find("span").first().text().trim().match(/Chap (\d+)/);
+			const subtitle = latestChapterMatch ? `Ch. ${latestChapterMatch[1]}` : void 0;
+			if (!title || !mangaId) return;
+			searchResults.push({
+				mangaId,
+				imageUrl: image,
+				title,
+				subtitle,
+				contentRating: ContentRating.EVERYONE
+			});
+		});
+		return searchResults;
+	};
+	const hasNextPage = ($) => {
+		return !!$(".page-item.active + .page-item .page-link").length;
+	};
+	const parseMangaDetails = ($, mangaId, searchDetails) => {
+		const title = $(".manga-detail .info h1").text().trim();
+		const altTitles = [$(".manga-detail .info h6").text().trim()].filter((t) => t);
+		const image = $(".manga-detail .poster img").attr("src") || "";
+		const description = $("#synopsis .modal-content").text().trim() || $(".manga-detail .info .description").text().trim();
+		const authors = [];
+		$("#info-rating .meta div").each((_, element) => {
+			if ($(element).find("span").first().text().trim() === "Author:") $(element).find("a").each((_, authorElement) => {
+				authors.push($(authorElement).text().trim());
+			});
+		});
+		const status = $(".manga-detail .info p").last().text().trim() || "Unknown";
+		const tags = [];
+		const genres = [];
+		let rating = 0;
+		$("#info-rating .meta div").each((_, element) => {
+			if ($(element).find("span").first().text().trim() === "Genres:") $(element).find("a").each((_, genreElement) => {
+				genres.push($(genreElement).text().trim());
+			});
+		});
+		const ratingValue = $("#info-rating .score .live-score").text().trim();
+		if (ratingValue) rating = parseFloat(ratingValue) / 10;
+		if (genres.length > 0) {
+			const genreIdByLabel = new Map((searchDetails?.genres ?? []).map((genre) => [genre.label.toLowerCase(), genre.id]));
+			tags.push({
+				id: "genres",
+				title: "Genres",
+				tags: genres.map((genre) => ({
+					id: genreIdByLabel.get(genre.toLowerCase()) ?? genre,
+					title: genre
+				}))
+			});
+		}
+		return {
+			mangaId,
+			mangaInfo: {
+				primaryTitle: title,
+				secondaryTitles: altTitles,
+				thumbnailUrl: image,
+				synopsis: description,
+				rating,
+				contentRating: ContentRating.EVERYONE,
+				status,
+				tagGroups: tags,
+				shareUrl: `${DOMAIN}/manga/${mangaId}`
+			}
+		};
+	};
+	const parseChapters = ($, sourceManga, langCode) => {
+		const chapters = [];
+		$("li").each((_, el) => {
+			const li = $(el);
+			const chapterNumber = li.attr("data-number");
+			if (!chapterNumber) return;
+			const link = li.find("a");
+			const href = link.attr("href");
+			if (!href) return;
+			const chapterUrlPath = href.startsWith("http") ? href.replace(/^https?:\/\/[^/]+/, "") : href;
+			const dateText = li.find("span").last().text().trim();
+			const title = link.find("span").first().text().trim().split(`${chapterNumber}:`)[1]?.trim() || void 0;
+			chapters.push({
+				chapterId: chapterUrlPath,
+				title,
+				sourceManga,
+				chapNum: parseFloat(chapterNumber ?? "0"),
+				publishDate: new Date(convertToISO8601(dateText)),
+				volume: 0,
+				langCode
+			});
+		});
+		return chapters;
+	};
+	const parseChapterDetails = (json, chapter) => {
+		const pages = json.result.images.map((value) => value[0]);
+		return {
+			mangaId: chapter.sourceManga.mangaId,
+			id: chapter.chapterId,
+			pages
+		};
+	};
+	const parseUpdatedSection = ($) => {
+		const items = [];
+		$(".unit .inner").each((_, element) => {
+			const unit = $(element);
+			const infoLink = unit.find(".info > a").last();
+			const title = infoLink.text().trim();
+			const image = unit.find(".poster img").attr("src") || "";
+			const mangaId = infoLink.attr("href")?.replace("/manga/", "") || "";
+			const latestChapterMatch = unit.find(".content[data-name='chap']").find("a").eq(0).text().trim().match(/Chap (\d+)/);
+			const subtitle = latestChapterMatch ? `Ch. ${latestChapterMatch[1]}` : void 0;
+			const chapterHref = unit.find(".content[data-name='chap'] a").first().attr("href") || "";
+			const chapterId = chapterHref.startsWith("http") ? chapterHref.replace(/^https?:\/\/[^/]+/, "") : chapterHref;
+			if (title && mangaId) items.push({
+				type: "chapterUpdatesCarouselItem",
+				mangaId,
+				chapterId,
+				imageUrl: image,
+				title,
+				subtitle,
+				contentRating: ContentRating.EVERYONE
+			});
+		});
+		return items;
+	};
+	const parsePopularSection = ($) => {
+		const items = [];
+		$(".unit .inner").each((_, element) => {
+			const unit = $(element);
+			const infoLink = unit.find(".info > a").last();
+			const title = infoLink.text().trim();
+			const image = unit.find(".poster img").attr("src") || "";
+			const mangaId = infoLink.attr("href")?.replace("/manga/", "") || "";
+			const chapterMatch = unit.find(".content[data-name='chap'] a").filter((_, el) => $(el).find("b").text() === "EN").first().find("span").first().text().trim().match(/Chap (\d+)/);
+			const supertitle = chapterMatch ? `Ch. ${chapterMatch[1]}` : "";
+			if (title && mangaId) items.push({
+				type: "featuredCarouselItem",
+				mangaId,
+				imageUrl: image,
+				title,
+				supertitle,
+				contentRating: ContentRating.EVERYONE
+			});
+		});
+		return items;
+	};
+	const popularHasNextPage = ($) => {
+		return !!$(".hpage .r").length;
+	};
+	const parseNewMangaSection = ($) => {
+		const items = [];
+		$(".unit .inner").each((_, element) => {
+			const unit = $(element);
+			const infoLink = unit.find(".info > a").last();
+			const title = infoLink.text().trim();
+			const image = unit.find(".poster img").attr("src") || "";
+			const mangaId = infoLink.attr("href")?.replace("/manga/", "") || "";
+			const latestChapterMatch = unit.find(".content[data-name='chap'] a").first().find("span").first().text().trim().match(/Chap (\d+)/);
+			const subtitle = latestChapterMatch ? `Ch. ${latestChapterMatch[1]}` : void 0;
+			if (title && mangaId) items.push({
+				mangaId,
+				imageUrl: image,
+				title,
+				subtitle,
+				contentRating: ContentRating.EVERYONE,
+				type: "simpleCarouselItem"
+			});
+		});
+		return items;
+	};
+	function convertToISO8601(dateText) {
+		const now = /* @__PURE__ */ new Date();
+		if (!dateText?.trim()) return now.toISOString();
+		if (/^yesterday$/i.test(dateText)) {
+			now.setDate(now.getDate() - 1);
+			return now.toISOString();
+		}
+		const relativeMatch = dateText.match(/(\d+)\s+(second|minute|hour|day)s?\s+ago/i);
+		if (relativeMatch) {
+			const [_, value, unit] = relativeMatch;
+			const parsedValue = parseInt(value, 10);
+			switch (unit.toLowerCase()) {
+				case "second":
+					now.setSeconds(now.getSeconds() - parsedValue);
+					break;
+				case "minute":
+					now.setMinutes(now.getMinutes() - parsedValue);
+					break;
+				case "hour":
+					now.setHours(now.getHours() - parsedValue);
+					break;
+				case "day":
+					now.setDate(now.getDate() - parsedValue);
+					break;
+			}
+			return now.toISOString();
+		}
+		const parsedDate = new Date(dateText);
+		return isNaN(parsedDate.getTime()) ? now.toISOString() : parsedDate.toISOString();
+	}
+	function parseJson(raw, context) {
+		try {
+			return JSON.parse(raw);
+		} catch (error) {
+			throw new Error(`Failed to parse ${context}`, { cause: error });
+		}
+	}
+
+//#endregion
+//#region src/MangaFire/utils/webView.ts
+	async function captureVrfUrl(opts) {
+		const { triggerUrl, matcher, trigger = "", cookieInterceptor, timeoutMs = 15e3 } = opts;
+		const [response, buffer] = await Application.scheduleRequest({
+			url: triggerUrl,
+			method: "GET"
+		});
+		if (response.status >= 400) throw new Error(`Failed to fetch ${triggerUrl}: HTTP ${response.status}`);
+		let html = Application.arrayBufferToUTF8String(buffer);
+		html = html.replace(/(["'])\/\/([a-zA-Z0-9.-]+)/g, "$1https://$2");
+		const hookSource = `
+    (function() {
+      const re = new RegExp(${JSON.stringify(matcher)});
+      let resolveFn, rejectFn;
+      window.__vrfCapture = new Promise(function(resolve, reject) {
+        resolveFn = resolve;
+        rejectFn = reject;
+      });
+      const timer = setTimeout(function() {
+        rejectFn(new Error("vrf capture timeout"));
+      }, ${timeoutMs});
+      function check(url) {
+        if (typeof url === "string" && re.test(url)) {
+          clearTimeout(timer);
+          resolveFn(url);
+          return true;
+        }
+        return false;
+      }
+      const origOpen = XMLHttpRequest.prototype.open;
+      XMLHttpRequest.prototype.open = function(method, url) {
+        check(url);
+        return origOpen.apply(this, arguments);
+      };
+      if (typeof window.fetch === "function") {
+        const origFetch = window.fetch;
+        window.fetch = function(input, init) {
+          const u = typeof input === "string" ? input : (input && input.url) || "";
+          check(u);
+          return origFetch.apply(this, arguments);
+        };
+      }
+    })();
+  `;
+		const $ = load(html);
+		if ($("head").length === 0) $("html").prepend("<head></head>");
+		$("head").prepend(`<script>${hookSource}<\/script>`);
+		html = $.html();
+		const cookies = cookieInterceptor.cookiesForUrl(triggerUrl);
+		const inject = `
+    ${trigger}
+    return window.__vrfCapture;
+  `;
+		const result = await Application.executeInWebView({
+			source: {
+				html,
+				baseUrl: `${DOMAIN}/`,
+				loadCSS: false,
+				loadImages: false
+			},
+			inject,
+			storage: { cookies },
+			captureConsoleLog: false
+		});
+		if (typeof result.result !== "string") throw new Error(`Unexpected vrf capture result: ${JSON.stringify(result.result)}`);
+		return result.result;
+	}
+	async function getSearchVrfUrl(query, cookieInterceptor) {
+		const cached = cacheGet(VRF_SEARCH_CACHE_KEY, query);
+		if (cached) return cached;
+		const trigger = `
+    $(function() {
+      setInterval(() => {
+        $(".search-inner input[name=keyword]").val(${JSON.stringify(query)}).trigger("keyup");
+      }, 1000);
+    });
+  `;
+		const captured = await captureVrfUrl({
+			triggerUrl: `${DOMAIN}/home`,
+			matcher: "ajax/manga/search\\?",
+			trigger,
+			cookieInterceptor
+		});
+		cacheSet(VRF_SEARCH_CACHE_KEY, query, captured);
+		return captured;
+	}
+	async function getChapterPagesVrfUrl(chapterUrlPath, cookieInterceptor) {
+		const cached = cacheGet(VRF_CHAPTER_CACHE_KEY, chapterUrlPath);
+		if (cached) return cached;
+		const captured = await captureVrfUrl({
+			triggerUrl: chapterUrlPath.startsWith("http") ? chapterUrlPath : `${DOMAIN}${chapterUrlPath.startsWith("/") ? "" : "/"}${chapterUrlPath}`,
+			matcher: "/ajax/read/(chapter|volume)[/?]",
+			cookieInterceptor
+		});
+		cacheSet(VRF_CHAPTER_CACHE_KEY, chapterUrlPath, captured);
+		return captured;
+	}
+	function extractVrf(url) {
+		const match = url.match(/[?&]vrf=([^&]+)/);
+		return match ? decodeURIComponent(match[1]) : "";
+	}
+
+//#endregion
+//#region src/MangaFire/main.ts
+	var MangaFireExtension = class {
+		constructor() {
+			_defineProperty(this, "requestManager", new MangaFireInterceptor("requestManager"));
+			_defineProperty(this, "cookieStorageInterceptor", new CookieStorageInterceptor({ storage: "stateManager" }));
+			_defineProperty(this, "globalRateLimiter", new BasicRateLimiter("rateLimiter", {
+				numberOfRequests: 10,
+				bufferInterval: 1,
+				ignoreImages: true
+			}));
+		}
+		async initialise() {
+			this.cookieStorageInterceptor.registerInterceptor();
+			this.requestManager.registerInterceptor();
+			this.globalRateLimiter.registerInterceptor();
+		}
+		async getDiscoverSections() {
+			return [
+				{
+					id: "popular_section",
+					title: "Popular",
+					type: DiscoverSectionType.featured
+				},
+				{
+					id: "updated_section",
+					title: "Recently Updated",
+					type: DiscoverSectionType.chapterUpdates
+				},
+				{
+					id: "new_manga_section",
+					title: "New Manga",
+					type: DiscoverSectionType.simpleCarousel
+				},
+				{
+					id: "languages_section",
+					title: "Languages",
+					type: DiscoverSectionType.genres
+				},
+				{
+					id: "types_section",
+					title: "Types",
+					type: DiscoverSectionType.genres
+				},
+				{
+					id: "genres_section",
+					title: "Genres",
+					type: DiscoverSectionType.genres
+				}
+			];
+		}
+		async getSettingsForm() {
+			return new MangaFireSettingsForm();
+		}
+		async getDiscoverSectionItems(section, metadata) {
+			switch (section.id) {
+				case "popular_section": return this.getPopularSectionItems(metadata);
+				case "updated_section": return this.getUpdatedSectionItems(metadata);
+				case "new_manga_section": return this.getNewMangaSectionItems(metadata);
+				case "types_section": return this.getTypesSection();
+				case "genres_section": return this.getFilterSection();
+				case "languages_section": return this.getLanguagesSection();
+				default: return { items: [] };
+			}
+		}
+		async saveCloudflareBypassCookies(cookies) {
+			for (const cookie of cookies) if (cookie.name.startsWith("cf") || cookie.name.startsWith("_cf") || cookie.name.startsWith("__cf")) this.cookieStorageInterceptor.setCookie(cookie);
+		}
+		async getSearchDetails() {
+			const cached = cacheGet(SEARCH_DETAILS_CACHE_KEY, "default");
+			if (cached) return JSON.parse(cached);
+			const request = {
+				url: `${DOMAIN}/filter`,
+				method: "GET"
+			};
+			const details = parseSearchDetails(await this.fetchCheerio(request));
+			cacheSet(SEARCH_DETAILS_CACHE_KEY, "default", JSON.stringify(details));
+			return details;
+		}
+		async getAdvancedSearchForm(query) {
+			return new MangaFireAdvancedSearchForm(query, await this.getSearchDetails());
+		}
+		async getSortingOptions() {
+			return (await this.getSearchDetails())?.sorts ?? [];
+		}
+		async getSearchResults(query, metadata, sortingOption) {
+			const page = metadata?.page ?? 1;
+			const searchUrl = new URL$1(DOMAIN).addPathComponent("filter").setQueryItem("keyword", query.title).setQueryItem("page", page.toString());
+			if (query.metadata?.genreMode) searchUrl.setQueryItem("genre_mode", "and");
+			if (query.title.trim()) {
+				const vrf = extractVrf(await getSearchVrfUrl(query.title, this.cookieStorageInterceptor));
+				searchUrl.setQueryItem("vrf", vrf);
+			}
+			const { type, genres, status, language, year, length } = query.metadata ?? {};
+			if (type) searchUrl.setQueryItem("type[]", type);
+			if (genres) {
+				const genreValues = Object.entries(genres).flatMap(([id, value]) => {
+					if (value === "included") return [id];
+					if (value === "excluded") return [`-${id}`];
+					return [];
+				});
+				if (genreValues.length > 0) searchUrl.setQueryItem("genre[]", genreValues);
+			}
+			if (status) searchUrl.setQueryItem("status[]", status);
+			if (language) searchUrl.setQueryItem("language[]", language);
+			if (year) searchUrl.setQueryItem("year[]", year);
+			if (length) searchUrl.setQueryItem("length[]", length);
+			if (sortingOption) searchUrl.setQueryItem("sort", sortingOption.id);
+			const request = {
+				url: searchUrl.toString(),
+				method: "GET"
+			};
+			const $ = await this.fetchCheerio(request);
+			return {
+				items: parseSearch($),
+				metadata: hasNextPage($) ? { page: page + 1 } : void 0
+			};
+		}
+		async getMangaDetails(mangaId) {
+			const searchDetails = await this.getSearchDetails();
+			const request = {
+				url: new URL$1(DOMAIN).addPathComponent("manga").addPathComponent(mangaId).toString(),
+				method: "GET"
+			};
+			return parseMangaDetails(await this.fetchCheerio(request), mangaId, searchDetails);
+		}
+		async getChapters(sourceManga) {
+			const mangaId = sourceManga.mangaId.split(".").pop();
+			if (!mangaId) throw new Error(`Invalid manga ID format: ${sourceManga.mangaId}`);
+			const languages = getLanguages();
+			const chapters = [];
+			for (const langCode of languages) {
+				const mangaRequest = {
+					url: new URL$1(DOMAIN).addPathComponent("ajax").addPathComponent("manga").addPathComponent(mangaId).addPathComponent("chapter").addPathComponent(langCode).toString(),
+					method: "GET"
+				};
+				const [_, mangaBuffer] = await Application.scheduleRequest(mangaRequest);
+				const mangaJson = parseJson(Application.arrayBufferToUTF8String(mangaBuffer), `chapters for language ${langCode}`);
+				const mangaHtml = typeof mangaJson.result === "string" ? mangaJson.result : mangaJson.result.html || "";
+				if (!mangaHtml) continue;
+				const $manga = load(mangaHtml);
+				chapters.push(...parseChapters($manga, sourceManga, langCode));
+			}
+			return chapters;
+		}
+		async getChapterDetails(chapter) {
+			const request = {
+				url: await getChapterPagesVrfUrl(chapter.chapterId, this.cookieStorageInterceptor),
+				method: "GET"
+			};
+			const [_, buffer] = await Application.scheduleRequest(request);
+			return parseChapterDetails(parseJson(Application.arrayBufferToUTF8String(buffer), "chapter details"), chapter);
+		}
+		async getUpdatedSectionItems(metadata) {
+			const page = metadata?.page ?? 1;
+			const collectedIds = metadata?.collectedIds ?? [];
+			const language = getLanguages();
+			const request = {
+				url: new URL$1(DOMAIN).addPathComponent("filter").setQueryItem("keyword", "").setQueryItem("language[]", language).setQueryItem("sort", "recently_updated").setQueryItem("page", page.toString()).toString(),
+				method: "GET"
+			};
+			const $ = await this.fetchCheerio(request);
+			const items = parseUpdatedSection($).filter((item) => !collectedIds.includes(item.mangaId));
+			collectedIds.push(...items.map((item) => item.mangaId));
+			return {
+				items,
+				metadata: hasNextPage($) ? {
+					page: page + 1,
+					collectedIds
+				} : void 0
+			};
+		}
+		async getPopularSectionItems(metadata) {
+			const page = metadata?.page ?? 1;
+			const collectedIds = metadata?.collectedIds ?? [];
+			const language = getLanguages();
+			const request = {
+				url: new URL$1(DOMAIN).addPathComponent("filter").setQueryItem("keyword", "").setQueryItem("language[]", language).setQueryItem("sort", "most_viewed").setQueryItem("page", page.toString()).toString(),
+				method: "GET"
+			};
+			const $ = await this.fetchCheerio(request);
+			const items = parsePopularSection($).filter((item) => !collectedIds.includes(item.mangaId));
+			collectedIds.push(...items.map((item) => item.mangaId));
+			return {
+				items,
+				metadata: popularHasNextPage($) ? {
+					page: page + 1,
+					collectedIds
+				} : void 0
+			};
+		}
+		async getNewMangaSectionItems(metadata) {
+			const page = metadata?.page ?? 1;
+			const collectedIds = metadata?.collectedIds ?? [];
+			const request = {
+				url: new URL$1(DOMAIN).addPathComponent("added").toString(),
+				method: "GET"
+			};
+			const $ = await this.fetchCheerio(request);
+			const items = parseNewMangaSection($).filter((item) => !collectedIds.includes(item.mangaId));
+			collectedIds.push(...items.map((item) => item.mangaId));
+			return {
+				items,
+				metadata: hasNextPage($) ? {
+					page: page + 1,
+					collectedIds
+				} : void 0
+			};
+		}
+		async getTypesSection() {
+			return { items: ((await this.getSearchDetails())?.types || []).map((type) => ({
+				type: "genresCarouselItem",
+				searchQuery: {
+					title: "",
+					metadata: { type: type.id }
+				},
+				name: type.label
+			})) };
+		}
+		async getFilterSection() {
+			return { items: ((await this.getSearchDetails())?.genres ?? []).map((genre) => ({
+				type: "genresCarouselItem",
+				searchQuery: {
+					title: "",
+					metadata: { genres: { [genre.id]: "included" } }
+				},
+				name: genre.label
+			})) };
+		}
+		async getLanguagesSection() {
+			return { items: ((await this.getSearchDetails())?.languages || []).map((lang) => ({
+				type: "genresCarouselItem",
+				searchQuery: {
+					title: "",
+					metadata: { language: lang.id }
+				},
+				name: lang.label
+			})) };
+		}
+		async fetchCheerio(request) {
+			const [_, data] = await Application.scheduleRequest(request);
+			return load(Application.arrayBufferToUTF8String(data), { xml: { xmlMode: false } });
+		}
+	};
+	const MangaFire = new MangaFireExtension();
+
+//#endregion
+//#region src/MangaFire/pbconfig.ts
 	var pbconfig_default = {
-		name: "PunkRecords",
-		description: "Extension pour récupérer le contenu de punkrecordz.com.",
-		version: "1.0.0-alpha.2",
+		name: "MangaFire",
+		description: "Extension that pulls content from mangafire.to.",
+		version: "1.0.0-alpha.13",
 		icon: "icon.png",
-		language: "fr",
+		language: "multi",
 		contentRating: ContentRating.EVERYONE,
 		capabilities: [
-			SourceIntents.CHAPTER_PROVIDING,
 			SourceIntents.DISCOVER_SECTION_PROVIDING,
 			SourceIntents.SEARCH_RESULT_PROVIDING,
+			SourceIntents.CHAPTER_PROVIDING,
 			SourceIntents.SETTINGS_FORM_PROVIDING
 		],
 		badges: [],
 		developers: [{
-			name: "Finebouche",
-			github: "https://github.com/Finebouche"
+			name: "Inkdex",
+			website: "https://inkdex.github.io",
+			github: "https://github.com/inkdex"
 		}]
 	};
-
-//#endregion
-//#region src/PunkRecords/main.ts
-	var PunkRecordsExtension = class {
-		constructor() {
-			_defineProperty(this, "parser", new PunkRecordsParser());
-			_defineProperty(this, "mainRateLimiter", new BasicRateLimiter("main", {
-				numberOfRequests: 5,
-				bufferInterval: 1,
-				ignoreImages: true
-			}));
-			_defineProperty(this, "mainInterceptor", new MainInterceptor("main"));
-		}
-		async initialise() {
-			this.mainRateLimiter.registerInterceptor();
-			this.mainInterceptor.registerInterceptor();
-		}
-		async getSettingsForm() {
-			return new PunkRecordsSettingsForm();
-		}
-		async getDiscoverSections() {
-			return this.parser.buildDiscoverSections(Application.getState(PUNK_RECORDS_STATE_KEYS.ShowCatalogueOnHome) !== false);
-		}
-		async getDiscoverSectionItems(section, metadata) {
-			const [catalogue, homeHtml] = await Promise.all([this.fetchCatalogue(), section.id === PUNK_RECORDS_SECTIONS.LATEST ? Application.scheduleRequest({
-				url: `${DOMAIN}/`,
-				method: "GET"
-			}).then(([, buffer]) => Application.arrayBufferToUTF8String(buffer)) : Promise.resolve("")]);
-			if (section.id === PUNK_RECORDS_SECTIONS.LATEST || section.id === PUNK_RECORDS_SECTIONS.CATALOGUE) return { items: this.parser.buildDiscoverItems(section.id, catalogue, homeHtml) };
-			return { items: [] };
-		}
-		async getSearchResults(query, metadata, sortingOption) {
-			const catalogue = await this.fetchCatalogue();
-			return { items: this.parser.buildSearchResults(catalogue, query.title ?? "") };
-		}
-		async getMangaDetails(mangaId) {
-			const [mangaPageHtml, catalogue] = await Promise.all([Application.scheduleRequest({
-				url: this.buildMangaUrl(mangaId),
-				method: "GET"
-			}).then(([, buffer]) => Application.arrayBufferToUTF8String(buffer)), this.fetchCatalogue()]);
-			const fallbackEntry = catalogue.find((manga) => manga.mangaId === mangaId);
-			const manga = this.parser.parseMangaDetails(mangaId, mangaPageHtml, fallbackEntry);
-			return {
-				...manga,
-				mangaInfo: {
-					...manga.mangaInfo,
-					shareUrl: this.buildMangaUrl(mangaId)
-				}
-			};
-		}
-		async getChapters(sourceManga, sinceDate) {
-			const [, buffer] = await Application.scheduleRequest({
-				url: this.buildMangaUrl(sourceManga.mangaId),
-				method: "GET"
-			});
-			return this.parser.parseChapterList(Application.arrayBufferToUTF8String(buffer), sourceManga);
-		}
-		async getChapterDetails(chapter) {
-			const [, buffer] = await Application.scheduleRequest({
-				url: new URL$1(DOMAIN).addPathComponent("mangas").addPathComponent(chapter.sourceManga.mangaId).addPathComponent(chapter.chapterId).toString(),
-				method: "GET"
-			});
-			return this.parser.parseChapterDetails(Application.arrayBufferToUTF8String(buffer), chapter);
-		}
-		async fetchCatalogue() {
-			const [, buffer] = await Application.scheduleRequest({
-				url: new URL$1(DOMAIN).addPathComponent("mangas").toString(),
-				method: "GET"
-			});
-			return this.parser.parseCatalogue(Application.arrayBufferToUTF8String(buffer));
-		}
-		buildMangaUrl(mangaId) {
-			return new URL$1(DOMAIN).addPathComponent("mangas").addPathComponent(mangaId).toString();
-		}
-	};
-	const PunkRecords = new PunkRecordsExtension();
 
 //#endregion
 //#region node_modules/chai/index.js
@@ -15703,9 +16832,9 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 		return `Map{ ${inspectList(mapToEntries(map), options, inspectMapEntry)} }`;
 	}
 	__name(inspectMap, "inspectMap");
-	var isNaN = Number.isNaN || ((i) => i !== i);
+	var isNaN$1 = Number.isNaN || ((i) => i !== i);
 	function inspectNumber(number, options) {
-		if (isNaN(number)) return options.stylize("NaN", "number");
+		if (isNaN$1(number)) return options.stylize("NaN", "number");
 		if (number === Infinity) return options.stylize("Infinity", "number");
 		if (number === -Infinity) return options.stylize("-Infinity", "number");
 		if (number === 0) return options.stylize(1 / number === Infinity ? "+0" : "-0", "number");
@@ -18438,10 +19567,10 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 	};
 
 //#endregion
-//#region src/tests/PunkRecords.ts
+//#region src/tests/MangaFire.ts
 	async function runTests(logger) {
-		const suite = new TestSuite("PunkRecords tests", logger);
-		registerDefaultTests(suite, PunkRecords, pbconfig_default);
+		const suite = new TestSuite("MangaFire tests", logger);
+		registerDefaultTests(suite, MangaFire, pbconfig_default);
 		await suite.run();
 	}
 
@@ -18449,4 +19578,4 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 exports.runTests = runTests;
 return exports;
 })({});
-//# sourceMappingURL=PunkRecords.js.map
+//# sourceMappingURL=MangaFire.js.map
