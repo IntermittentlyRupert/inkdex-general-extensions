@@ -4,95 +4,155 @@
 import { type CookieStorageInterceptor } from "@paperback/types";
 import * as cheerio from "cheerio";
 
-import { DOMAIN } from "../models";
+import { type ChapterItem, DOMAIN } from "../models";
 
-/**
- * Returns the signed `_=` token for a Comix API path.
- *
- * Approach: the bundle's signer (`bi.D`) is module-scoped in an ES module and
- * is no longer reachable from `globalThis` (the old `vmX_<hex>` namespace is
- * gone). Instead of probing for it, we load `pageUrl` (a real page whose own
- * JS fires a signed request to `pathOnly`) in a WebView and hook
- * `fetch` / `XMLHttpRequest.open` to capture the `_=` value off that URL.
- *
- * The bundle's interceptor signs by path only (`Ni` strips the query string),
- * so the captured token is reusable for any query on the same path. Callers
- * should cache it.
- */
-export async function getVmToken(
-  pathOnly: string,
+// Loads a Comix page in a WebView and lets the site's own JS run end-to-end:
+// the bundle signs API requests and decrypts `{e:"blob"}` envelopes
+// internally, then calls JSON.parse on the plaintext. A Proxy on JSON.parse
+// captures that plaintext, so we never need to probe the rotating signer or
+// reimplement the decryption. WKWebView's default UA (Macintosh) differs
+// from Paperback's (iPhone) — cf_clearance is issued against Paperback's
+// UA, so XHR/fetch are shimmed to send that UA, otherwise CF invalidates
+// the cookie and every in-WebView API call gets the challenge page.
+async function runProxiedWebView<T>(
   pageUrl: string,
+  bootstrap: string,
   cookieInterceptor: CookieStorageInterceptor,
-): Promise<string> {
+): Promise<T> {
+  const cookies = cookieInterceptor.cookiesForUrl(`${DOMAIN}/`);
+  const userAgent = await Application.getDefaultUserAgent();
   const [, buffer] = await Application.scheduleRequest({ url: pageUrl, method: "GET" });
-  const rawHtml = Application.arrayBufferToUTF8String(buffer);
+  const $ = cheerio.load(Application.arrayBufferToUTF8String(buffer));
 
-  // Prepended to <head> so it runs before any site script registers the axios
-  // interceptors. Captured tokens are stored on `window.__comixTokens__`
-  // keyed by the API path (after stripping `/api/v1`).
-  const hookScript = `
+  const uaShim = `
     (function () {
-      window.__comixTokens__ = window.__comixTokens__ || {};
-      function grab(rawUrl) {
-        if (typeof rawUrl !== "string") return;
-        try {
-          var u = new URL(rawUrl, window.location.origin);
-          var t = u.searchParams.get("_");
-          if (!t) return;
-          var p = u.pathname.replace(/^\\/api\\/v1/, "");
-          if (!window.__comixTokens__[p]) window.__comixTokens__[p] = t;
-        } catch (e) {}
-      }
+      var UA = ${JSON.stringify(userAgent)};
+      var REFERER = ${JSON.stringify(pageUrl)};
+      var origSetReq = XMLHttpRequest.prototype.setRequestHeader;
+      var origSend = XMLHttpRequest.prototype.send;
+      XMLHttpRequest.prototype.send = function () {
+        try { origSetReq.call(this, "User-Agent", UA); } catch (e) {}
+        try { origSetReq.call(this, "Referer", REFERER); } catch (e) {}
+        return origSend.apply(this, arguments);
+      };
       var origFetch = window.fetch;
       window.fetch = function (input, init) {
-        try { grab(typeof input === "string" ? input : input && input.url); } catch (e) {}
-        return origFetch.apply(this, arguments);
-      };
-      var origOpen = XMLHttpRequest.prototype.open;
-      XMLHttpRequest.prototype.open = function (m, u) {
-        try { grab(u); } catch (e) {}
-        return origOpen.apply(this, arguments);
+        init = init || {};
+        var h = new Headers((init && init.headers) || (input && input.headers) || {});
+        h.set("User-Agent", UA);
+        h.set("Referer", REFERER);
+        init.headers = h;
+        return origFetch.call(this, input, init);
       };
     })();
   `;
-
-  const $ = cheerio.load(rawHtml);
-  $("head").prepend(`<script>${hookScript}</script>`);
-  const html = $.html();
-
-  const cookies = cookieInterceptor.cookiesForUrl(`${DOMAIN}/`);
+  $("head").prepend(`<script>${uaShim}${bootstrap}</script>`);
 
   const raw = await Application.executeInWebView({
-    source: {
-      html,
-      baseUrl: pageUrl,
-      loadCSS: false,
-      loadImages: false,
-    },
-    inject: `return (async () => {
-      try {
-        const path = ${JSON.stringify(pathOnly)};
-        const deadline = Date.now() + 15000;
-        while (Date.now() < deadline) {
-          const t = window.__comixTokens__ && window.__comixTokens__[path];
-          if (typeof t === "string" && t.length > 0) {
-            return JSON.stringify({ ok: true, token: t });
-          }
-          await new Promise(r => setTimeout(r, 100));
-        }
-        const captured = Object.keys(window.__comixTokens__ || {});
-        return JSON.stringify({ ok: false, error: "timeout; captured paths: " + JSON.stringify(captured) });
-      } catch (e) {
-        return JSON.stringify({ ok: false, error: "exception: " + (e && e.message || e) });
-      }
-    })()`,
+    source: { html: $.html(), baseUrl: pageUrl, loadCSS: false, loadImages: false },
+    inject: `return window.__comixResult__`,
     storage: { cookies },
   });
 
-  if (typeof raw.result !== "string") {
-    throw new Error(`Comix getVmToken returned non-string: ${JSON.stringify(raw.result)}`);
+  if (raw.result === undefined || raw.result === null) {
+    throw new Error("Comix WebView returned no result");
   }
-  const out = JSON.parse(raw.result) as { ok: boolean; token?: string; error?: string };
-  if (!out.ok || !out.token) throw new Error(`Comix getVmToken failed: ${out.error ?? "unknown"}`);
-  return out.token;
+  return raw.result as T;
+}
+
+export async function chapterListViaWebView(
+  mangaId: string,
+  cookieInterceptor: CookieStorageInterceptor,
+): Promise<ChapterItem[]> {
+  // The SPA fetches chapters on mount and on Next-button click. Capture the
+  // decrypted JSON for each fetch via JSON.parse, then drive pagination by
+  // clicking the Next button until meta.lastPage is reached.
+  const bootstrap = `
+    (function () {
+      var items = [];
+      var seenPages = new Set();
+      var totalPages = null;
+      var submitted = false;
+      var doneResolve;
+      window.__comixResult__ = new Promise(function (r) { doneResolve = r; });
+      function submit() {
+        if (submitted) return;
+        submitted = true;
+        doneResolve(items);
+      }
+      function gotoNext() {
+        // The Next button is rendered by the SPA after the API response; our
+        // JSON.parse hook fires synchronously in the same tick, before any
+        // DOM update. Poll for it, give up after 5s.
+        var tries = 0;
+        var iv = setInterval(function () {
+          var btn = document.querySelector(".mchap-foot button[aria-label*=Next]");
+          if (btn && !btn.disabled) { btn.click(); clearInterval(iv); }
+          else if (++tries > 50) { clearInterval(iv); submit(); }
+        }, 100);
+      }
+      var orig = JSON.parse;
+      JSON.parse = new Proxy(orig, {
+        apply: function (t, a, args) {
+          var parsed = Reflect.apply(t, a, args);
+          try {
+            if (
+              !submitted && parsed && parsed.result &&
+              Array.isArray(parsed.result.items) &&
+              parsed.result.items[0] &&
+              parsed.result.items[0].id !== undefined &&
+              parsed.result.items[0].mangaId !== undefined
+            ) {
+              var meta = parsed.result.meta || parsed.result.pagination;
+              var page = (meta && meta.page) || 1;
+              if (!seenPages.has(page)) {
+                seenPages.add(page);
+                for (var i = 0; i < parsed.result.items.length; i++) items.push(parsed.result.items[i]);
+                if (totalPages === null && meta && typeof meta.lastPage === "number") totalPages = meta.lastPage;
+                if (totalPages !== null && page < totalPages) gotoNext();
+                else submit();
+              }
+            }
+          } catch (e) {}
+          return parsed;
+        }
+      });
+      setTimeout(submit, 30000);
+    })();
+  `;
+  return runProxiedWebView<ChapterItem[]>(
+    `${DOMAIN}/title/${mangaId}`,
+    bootstrap,
+    cookieInterceptor,
+  );
+}
+
+export async function pageListViaWebView(
+  chapterPagePath: string,
+  cookieInterceptor: CookieStorageInterceptor,
+): Promise<string> {
+  const bootstrap = `
+    (function () {
+      var doneResolve;
+      window.__comixResult__ = new Promise(function (r) { doneResolve = r; });
+      var orig = JSON.parse;
+      JSON.parse = new Proxy(orig, {
+        apply: function (t, a, args) {
+          var parsed = Reflect.apply(t, a, args);
+          try {
+            if (parsed && parsed.result && parsed.result.pages) doneResolve(args[0]);
+          } catch (e) {}
+          return parsed;
+        }
+      });
+      setTimeout(function () { doneResolve(""); }, 20000);
+    })();
+  `;
+  const payload = await runProxiedWebView<string>(
+    `${DOMAIN}${chapterPagePath}`,
+    bootstrap,
+    cookieInterceptor,
+  );
+  if (!payload) throw new Error("Comix pageListViaWebView: timed out waiting for pages JSON");
+  return payload;
 }
