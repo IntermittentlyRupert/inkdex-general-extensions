@@ -16232,8 +16232,12 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
       var origSetReq = XMLHttpRequest.prototype.setRequestHeader;
       var origSend = XMLHttpRequest.prototype.send;
       XMLHttpRequest.prototype.send = function () {
-        try { origSetReq.call(this, "User-Agent", UA); } catch (e) {}
-        try { origSetReq.call(this, "Referer", REFERER); } catch (e) {}
+        try {
+          origSetReq.call(this, "User-Agent", UA);
+        } catch {}
+        try {
+          origSetReq.call(this, "Referer", REFERER);
+        } catch {}
         return origSend.apply(this, arguments);
       };
       var origFetch = window.fetch;
@@ -16269,21 +16273,31 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
       var totalPages = null;
       var submitted = false;
       var doneResolve;
-      window.__comixResult__ = new Promise(function (r) { doneResolve = r; });
+      window.__comixResult__ = new Promise(function (r) {
+        doneResolve = r;
+      });
       function submit() {
         if (submitted) return;
         submitted = true;
         doneResolve(items);
       }
+      var idleTimer;
+      function armIdle() {
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = setTimeout(submit, 20000);
+      }
+      armIdle();
       function gotoNext() {
-        // The Next button is rendered by the SPA after the API response; our
-        // JSON.parse hook fires synchronously in the same tick, before any
-        // DOM update. Poll for it, give up after 5s.
         var tries = 0;
         var iv = setInterval(function () {
           var btn = document.querySelector(".mchap-foot button[aria-label*=Next]");
-          if (btn && !btn.disabled) { btn.click(); clearInterval(iv); }
-          else if (++tries > 50) { clearInterval(iv); submit(); }
+          if (btn && !btn.disabled) {
+            btn.click();
+            clearInterval(iv);
+          } else if (++tries > 50) {
+            clearInterval(iv);
+            submit();
+          }
         }, 100);
       }
       var orig = JSON.parse;
@@ -16292,7 +16306,9 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
           var parsed = Reflect.apply(t, a, args);
           try {
             if (
-              !submitted && parsed && parsed.result &&
+              !submitted &&
+              parsed &&
+              parsed.result &&
               Array.isArray(parsed.result.items) &&
               parsed.result.items[0] &&
               parsed.result.items[0].id !== undefined &&
@@ -16303,16 +16319,18 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
               if (!seenPages.has(page)) {
                 seenPages.add(page);
                 for (var i = 0; i < parsed.result.items.length; i++) items.push(parsed.result.items[i]);
-                if (totalPages === null && meta && typeof meta.lastPage === "number") totalPages = meta.lastPage;
-                if (totalPages !== null && page < totalPages) gotoNext();
-                else submit();
+                if (totalPages === null && meta && typeof meta.lastPage === "number")
+                  totalPages = meta.lastPage;
+                if (totalPages !== null && page < totalPages) {
+                  armIdle();
+                  gotoNext();
+                } else submit();
               }
             }
-          } catch (e) {}
+          } catch {}
           return parsed;
-        }
+        },
       });
-      setTimeout(submit, 30000);
     })();
   `, cookieInterceptor);
 	}
@@ -16320,18 +16338,22 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 		const payload = await runProxiedWebView(`${DOMAIN}${chapterPagePath}`, `
     (function () {
       var doneResolve;
-      window.__comixResult__ = new Promise(function (r) { doneResolve = r; });
+      window.__comixResult__ = new Promise(function (r) {
+        doneResolve = r;
+      });
       var orig = JSON.parse;
       JSON.parse = new Proxy(orig, {
         apply: function (t, a, args) {
           var parsed = Reflect.apply(t, a, args);
           try {
             if (parsed && parsed.result && parsed.result.pages) doneResolve(args[0]);
-          } catch (e) {}
+          } catch {}
           return parsed;
-        }
+        },
       });
-      setTimeout(function () { doneResolve(""); }, 20000);
+      setTimeout(function () {
+        doneResolve("");
+      }, 20000);
     })();
   `, cookieInterceptor);
 		if (!payload) throw new Error("Comix pageListViaWebView: timed out waiting for pages JSON");
@@ -16820,7 +16842,7 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 	var pbconfig_default = {
 		name: "Comix",
 		description: "Extension that pulls content from Comix.to.",
-		version: "1.0.0-alpha.27",
+		version: "1.0.0-alpha.28",
 		icon: "icon.png",
 		language: "en",
 		contentRating: ContentRating.EVERYONE,
