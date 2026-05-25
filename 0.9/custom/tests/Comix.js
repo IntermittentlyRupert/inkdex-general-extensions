@@ -16366,6 +16366,7 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 		async interceptRequest(request) {
 			return {
 				...request,
+				url: request.url.replace(/(\/)si?i(\/[^/]+\/[^/]+\.(?:webp|jpe?g|png|gif|avif))(\?|$)/i, "$1i$2$3"),
 				headers: {
 					...request.headers,
 					referer: `${DOMAIN}/`,
@@ -16842,7 +16843,7 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 	var pbconfig_default = {
 		name: "Comix",
 		description: "Extension that pulls content from Comix.to.",
-		version: "1.0.0-alpha.28",
+		version: "1.0.0-alpha.29",
 		icon: "icon.png",
 		language: "en",
 		contentRating: ContentRating.EVERYONE,
