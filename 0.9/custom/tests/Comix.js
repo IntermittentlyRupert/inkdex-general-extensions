@@ -1737,6 +1737,125 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	};
 
 //#endregion
+//#region src/Comix/utils/descramble.ts
+	function computeScramblePerm(seed, tileCount) {
+		let state = seed >>> 0;
+		const arr = Array.from({ length: tileCount });
+		for (let i = 0; i < tileCount; i++) arr[i] = i;
+		for (let i = tileCount - 1; i > 0; i--) {
+			state = Math.imul(state, 1664525) + 1013904223 >>> 0;
+			const j = state % (i + 1);
+			const tmp = arr[i];
+			arr[i] = arr[j];
+			arr[j] = tmp;
+		}
+		return arr;
+	}
+	function computeDescrambleLookup(seed, tileCount) {
+		const P = computeScramblePerm(seed, tileCount);
+		const inv = Array.from({ length: tileCount });
+		for (let i = 0; i < tileCount; i++) inv[P[i]] = i;
+		return inv;
+	}
+	function parseScrambleGrid(grid) {
+		const m = /^\s*(\d+)\s*x\s*(\d+)\s*$/i.exec(grid);
+		if (!m) return null;
+		const cols = parseInt(m[1], 10);
+		const rows = parseInt(m[2], 10);
+		if (!Number.isFinite(cols) || !Number.isFinite(rows) || cols <= 0 || rows <= 0) return null;
+		return {
+			cols,
+			rows
+		};
+	}
+	function readScrambleHeaders(headers) {
+		let seedStr;
+		let gridStr;
+		for (const [key, value] of Object.entries(headers)) {
+			const lk = key.toLowerCase();
+			if (lk === "x-scramble-seed") seedStr = value;
+			else if (lk === "x-scramble-grid") gridStr = value;
+		}
+		if (!seedStr || !gridStr) return null;
+		const seed = parseInt(seedStr, 10);
+		if (!Number.isFinite(seed) || seed < 0) return null;
+		const grid = parseScrambleGrid(gridStr);
+		if (!grid) return null;
+		return {
+			seed,
+			cols: grid.cols,
+			rows: grid.rows
+		};
+	}
+	async function loadImageFromBuffer(data, mimeType) {
+		const b64 = Application.base64Encode(data);
+		const dataUrl = `data:${mimeType};base64,${typeof b64 === "string" ? b64 : Application.arrayBufferToASCIIString(b64)}`;
+		const img = new Image();
+		return await new Promise((resolve, reject) => {
+			if (img.complete && img.naturalWidth > 0) {
+				resolve(img);
+				return;
+			}
+			img.onload = () => resolve(img);
+			img.onerror = (event) => {
+				reject(new Error(typeof event === "string" ? event : "image load failed"));
+			};
+			img.src = dataUrl;
+			if (img.complete && img.naturalWidth > 0) resolve(img);
+		});
+	}
+	function decodeDataUrlToArrayBuffer(dataUrl) {
+		const comma = dataUrl.indexOf(",");
+		if (comma < 0) throw new Error("toDataURL returned malformed data URL");
+		const payload = dataUrl.slice(comma + 1);
+		const decoded = Application.base64Decode(payload);
+		if (typeof decoded === "string") {
+			const buf = new Uint8Array(decoded.length);
+			for (let i = 0; i < decoded.length; i++) buf[i] = decoded.charCodeAt(i);
+			return buf.buffer;
+		}
+		return decoded;
+	}
+	async function descrambleImage(data, params, mimeType) {
+		const src = await loadImageFromBuffer(data, mimeType);
+		const width = src.naturalWidth || src.width;
+		const height = src.naturalHeight || src.height;
+		const { cols, rows, seed } = params;
+		const tw = width / cols | 0;
+		const th = height / rows | 0;
+		if (tw === 0 || th === 0) throw new Error(`image ${width}x${height} too small for grid ${cols}x${rows}`);
+		const lookup = computeDescrambleLookup(seed, cols * rows);
+		const canvas = new HTMLCanvasElement();
+		canvas.width = width;
+		canvas.height = height;
+		const ctx = canvas.getContext("2d");
+		if (!ctx) throw new Error("failed to acquire 2d context");
+		ctx.drawImage(src, 0, 0, width, height);
+		const stride = width * 4;
+		const srcYup = ctx.getImageData(0, 0, width, height).data;
+		const srcStd = new Uint8ClampedArray(srcYup.length);
+		for (let y = 0; y < height; y++) srcStd.set(srcYup.subarray(y * stride, (y + 1) * stride), (height - 1 - y) * stride);
+		const dstStd = new Uint8ClampedArray(srcStd);
+		const rowBytes = tw * 4;
+		for (let i = 0; i < lookup.length; i++) {
+			const cleanRow = i / cols | 0;
+			const cleanCol = i % cols;
+			const srcIdx = lookup[i];
+			const srcRow = srcIdx / cols | 0;
+			const srcCol = srcIdx % cols;
+			for (let y = 0; y < th; y++) {
+				const srcOff = ((srcRow * th + y) * width + srcCol * tw) * 4;
+				const dstOff = ((cleanRow * th + y) * width + cleanCol * tw) * 4;
+				dstStd.set(srcStd.subarray(srcOff, srcOff + rowBytes), dstOff);
+			}
+		}
+		const dstYup = new Uint8ClampedArray(dstStd.length);
+		for (let y = 0; y < height; y++) dstYup.set(dstStd.subarray(y * stride, (y + 1) * stride), (height - 1 - y) * stride);
+		ctx.putImageData(new ImageData(dstYup, width, height), 0, 0);
+		return decodeDataUrlToArrayBuffer(canvas.toDataURL(mimeType));
+	}
+
+//#endregion
 //#region node_modules/domelementtype/lib/esm/index.js
 /** Types of elements found in htmlparser2's DOM */
 	var ElementType;
@@ -16366,7 +16485,6 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 		async interceptRequest(request) {
 			return {
 				...request,
-				url: request.url.replace(/(\/)si?i(\/[^/]+\/[^/]+\.(?:webp|jpe?g|png|gif|avif))(\?|$)/i, "$1i$2$3"),
 				headers: {
 					...request.headers,
 					referer: `${DOMAIN}/`,
@@ -16374,13 +16492,21 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 				}
 			};
 		}
-		async interceptResponse(_, response, data) {
+		async interceptResponse(request, response, data) {
 			if (response.headers?.["cf-mitigated"] === "challenge") throw new CloudflareError({
 				url: DOMAIN,
 				method: "GET",
 				headers: { "user-agent": await Application.getDefaultUserAgent() }
 			});
-			return data;
+			if (!/\/si?i\//i.test(request.url)) return data;
+			const scrambleParams = readScrambleHeaders(response.headers);
+			if (!scrambleParams) return data;
+			try {
+				return await descrambleImage(data, scrambleParams, response.mimeType ?? "image/webp");
+			} catch (error) {
+				console.log(`[Comix] descramble failed for ${request.url}: ${error instanceof Error ? error.message : String(error)}`);
+				return data;
+			}
 		}
 	};
 	var ComixApi = class {
@@ -16843,7 +16969,7 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 	var pbconfig_default = {
 		name: "Comix",
 		description: "Extension that pulls content from Comix.to.",
-		version: "1.0.0-alpha.29",
+		version: "1.0.0-alpha.30",
 		icon: "icon.png",
 		language: "en",
 		contentRating: ContentRating.EVERYONE,

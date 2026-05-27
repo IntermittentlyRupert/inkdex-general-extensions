@@ -16258,7 +16258,7 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 			const cached = cacheGet(SEARCH_DETAILS_CACHE_KEY, "default");
 			if (cached) return JSON.parse(cached);
 			const request = {
-				url: `${DOMAIN}/filter`,
+				url: `${DOMAIN}/filter?keyword=aa&vrf=${extractVrf(await getSearchVrfUrl("aa", this.cookieStorageInterceptor))}`,
 				method: "GET"
 			};
 			const details = parseSearchDetails(await this.fetchCheerio(request));
@@ -16437,7 +16437,7 @@ var import_boolbase = /* @__PURE__ */ __toESM(require_boolbase(), 1);
 	var pbconfig_default = {
 		name: "MangaFire",
 		description: "Extension that pulls content from mangafire.to.",
-		version: "1.0.0-alpha.13",
+		version: "1.0.0-alpha.14",
 		icon: "icon.png",
 		language: "multi",
 		contentRating: ContentRating.EVERYONE,
