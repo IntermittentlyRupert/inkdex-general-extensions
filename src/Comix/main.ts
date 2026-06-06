@@ -8,6 +8,7 @@ import {
   type DiscoverSection,
   type DiscoverSectionItem,
   type ExtensionImpl,
+  type Form,
   type PagedResults,
   type AdvancedSearchForm,
   type SearchQuery,
@@ -17,7 +18,6 @@ import {
   BasicRateLimiter,
   CookieStorageInterceptor,
   DiscoverSectionType,
-  Form,
 } from "@paperback/types";
 
 import { ComixAdvancedSearchForm } from "./forms/search";
@@ -25,7 +25,7 @@ import { getDiscoverySectionsOrder, MainSettings } from "./forms/settings";
 import type { Filters, Metadata, OptionItem, SearchMetadata } from "./models";
 import { ComixInterceptor, ComixApi } from "./network";
 import { ComixParser } from "./parsers";
-import ComixConfig from "./pbconfig";
+import type ComixConfig from "./pbconfig";
 import { ComixFilter } from "./utils/filter";
 import { buildFilter, getDefaultMetadata } from "./utils/helpers";
 
@@ -231,8 +231,10 @@ export class ComixExtension implements ExtensionImpl<typeof ComixConfig> {
     const demographic = searchQuery.metadata?.demographic ?? {};
     const status = searchQuery.metadata?.status ?? {};
     const types = searchQuery.metadata?.types ?? {};
-    const mode = searchQuery.metadata?.mode ?? "and";
-    const min_chapters = searchQuery.metadata?.minChap ?? 1;
+    const mode = searchQuery.metadata?.mode ?? ["and"];
+    const content =
+      searchQuery.metadata?.contentRating ?? this.filter.getDefaultContentRatingSettings();
+    const minChapters = searchQuery.metadata?.minChap ?? 0;
     const [sortBy, orderBy] = sorting.id.split("$");
     const filters: Filters[] = [
       ...buildFilter(false, "genres_in[]", genres, formats),
@@ -245,10 +247,11 @@ export class ComixExtension implements ExtensionImpl<typeof ComixConfig> {
       searchQuery.title,
       page,
       filters,
-      mode as string,
-      min_chapters as number,
+      mode,
+      minChapters,
       sortBy,
       orderBy,
+      content,
     );
     return this.parser.parseSearchResults(page, search);
   }

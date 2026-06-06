@@ -5,18 +5,19 @@ import {
   ButtonRow,
   EditSection,
   Form,
+  FormConfirmationError,
+  LabelRow,
   NavigationRow,
   Section,
   SelectRow,
-  type FormSectionElement,
   StepperRow,
-  FormConfirmationError,
-  LabelRow,
-  type FormItemElement,
   ToggleRow,
+  type FormItemElement,
+  type FormSectionElement,
 } from "@paperback/types";
 
-import { ComixFilter, discoverySections } from "../utils/filter";
+import type { ComixFilter } from "../utils/filter";
+import { discoverySections } from "../utils/filter";
 
 function getDeletedDiscoverySections() {
   return (
@@ -450,6 +451,26 @@ class FilterSettings extends BaseSettings {
       ),
       Section(
         {
+          id: "content_rating",
+          footer: "Content Rating",
+        },
+        [
+          SelectRow("content_rating", {
+            title: "Content Rating",
+            value: this.filter.getDefaultContentRatingSettings(),
+            items: this.filter.contentRating,
+            layout: "list",
+            maxItemCount: 1,
+            minItemCount: 1,
+            onValueChange: Application.Selector(
+              this as FilterSettings,
+              "handleContentRatingStatusChange",
+            ),
+          }),
+        ],
+      ),
+      Section(
+        {
           id: "reset_settings",
           footer: "Reset Settings",
         },
@@ -466,6 +487,10 @@ class FilterSettings extends BaseSettings {
   async handleHideGenresStatusChange(id: string[]) {
     Application.invalidateDiscoverSections();
     await this.updateValue(id, "hide_genres");
+  }
+
+  async handleContentRatingStatusChange(id: string[]) {
+    await this.updateValue(id, "content_rating");
   }
 
   async handleHideDemogStatusChange(id: string[]) {

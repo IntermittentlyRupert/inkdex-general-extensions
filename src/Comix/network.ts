@@ -2,16 +2,18 @@
 /* Copyright © 2026 Inkdex */
 
 import {
-  type Chapter,
-  type Request,
-  type Response,
   CloudflareError,
-  CookieStorageInterceptor,
   PaperbackInterceptor,
   URL,
+  type Chapter,
+  type CookieStorageInterceptor,
+  type Request,
+  type Response,
 } from "@paperback/types";
 
 import {
+  API,
+  DOMAIN,
   type ApiResponse,
   type ApiRequestConfig,
   type ChapterItem,
@@ -20,11 +22,9 @@ import {
   type MangaItem,
   type ResultManga,
   type Filter,
-  API,
-  DOMAIN,
 } from "./models";
 import { descrambleImage, readScrambleHeaders } from "./utils/descramble";
-import { ComixFilter } from "./utils/filter";
+import type { ComixFilter } from "./utils/filter";
 import { chapterListViaWebView, pageListViaWebView } from "./utils/webView";
 
 export class ComixInterceptor extends PaperbackInterceptor {
@@ -55,8 +55,7 @@ export class ComixInterceptor extends PaperbackInterceptor {
       });
     }
 
-    if (!/\/si?i\//i.test(request.url)) return data;
-
+    if (!response.mimeType?.startsWith("image/")) return data;
     const scrambleParams = readScrambleHeaders(response.headers);
     if (!scrambleParams) return data;
 
@@ -256,16 +255,18 @@ export class ComixApi {
     keyword: string,
     page: number,
     filters: Filters[],
-    mode: string,
-    min_chapter: number,
+    mode: string[],
+    minChapters: number,
     sortBy: string,
     orderBy: string,
+    content: string[],
   ) {
     const query: Record<string, string | string[]> = {
       page: page.toString(),
       [`order[${sortBy}]`]: orderBy,
       genres_mode: mode,
-      min_chap: min_chapter.toString(),
+      min_chap: minChapters > 0 ? minChapters.toString() : "",
+      content_rating: content,
     };
     if (keyword.length > 1) {
       query.keyword = keyword;

@@ -3,16 +3,17 @@
 
 import {
   AdvancedSearchForm,
-  type FormSectionElement,
-  type SearchQuery,
   Section,
+  SelectRow,
   SelectSection,
   StepperRow,
   TriStateSelectRow,
+  type FormSectionElement,
+  type SearchQuery,
 } from "@paperback/types";
 
 import type { SearchMetadata, TagMap } from "../models";
-import { ComixFilter } from "../utils/filter";
+import type { ComixFilter } from "../utils/filter";
 
 export class ComixAdvancedSearchForm extends AdvancedSearchForm {
   private searchMetadata: SearchMetadata;
@@ -125,11 +126,25 @@ export class ComixAdvancedSearchForm extends AdvancedSearchForm {
         StepperRow("chapter_min", {
           title: "Minimum Chapters",
           value: this.searchMetadata.minChap ?? 0,
-          minValue: 1,
+          minValue: 0,
           maxValue: 10000,
           stepValue: 1,
           loopOver: false,
           onValueChange: Application.Selector(this as ComixAdvancedSearchForm, "handleMinChapters"),
+        }),
+      ]),
+      Section("content_rating", [
+        SelectRow("content_rating", {
+          title: "Content Rating",
+          value: this.searchMetadata.contentRating ?? this.filter.getDefaultContentRatingSettings(),
+          items: this.filter.contentRating,
+          layout: "list",
+          maxItemCount: 1,
+          minItemCount: 1,
+          onValueChange: Application.Selector(
+            this as ComixAdvancedSearchForm,
+            "handleContentRating",
+          ),
         }),
       ]),
     ];
@@ -152,5 +167,8 @@ export class ComixAdvancedSearchForm extends AdvancedSearchForm {
   }
   async handleMinChapters(value: number): Promise<void> {
     this.searchMetadata.minChap = value;
+  }
+  async handleContentRating(value: string[]): Promise<void> {
+    this.searchMetadata.contentRating = value;
   }
 }

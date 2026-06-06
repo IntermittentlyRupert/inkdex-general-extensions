@@ -2,42 +2,37 @@
 /* Copyright © 2026 Inkdex */
 
 import {
-  AdvancedSearchForm,
   DiscoverSectionType,
   URL,
+  type AdvancedSearchForm,
   type Chapter,
   type ChapterDetails,
-  type ChapterProviding,
   type DiscoverSection,
   type DiscoverSectionItem,
-  type DiscoverSectionProviding,
+  type ExtensionImpl,
   type Metadata,
   type PagedResults,
   type SearchQuery,
   type SearchResultItem,
-  type SearchResultsProviding,
   type SortingOption,
   type SourceManga,
 } from "@paperback/types";
 
 import { WebtoonAdvancedSearchForm } from "./forms";
-import type { SearchMetadata } from "./models";
+import type { SearchMetadata, Language } from "./models";
 import {
-  type Tag,
-  type WebtoonsSearchingMetadata,
-  type WebtoonChaptersListDto,
   BASE_URL,
   MOBILE_URL,
   getDateDayFormat,
   getLanguagesTitle,
-  Language,
+  type Tag,
+  type WebtoonsSearchingMetadata,
+  type WebtoonChaptersListDto,
 } from "./models";
 import { WebtoonInfra } from "./network";
+import type WebtoonConfig from "./pbconfig";
 
-export class WebtoonExtention
-  extends WebtoonInfra
-  implements SearchResultsProviding, ChapterProviding, DiscoverSectionProviding
-{
+export class WebtoonExtention extends WebtoonInfra implements ExtensionImpl<typeof WebtoonConfig> {
   getMangaDetails(mangaId: string): Promise<SourceManga> {
     return this.ExecRequest(
       {

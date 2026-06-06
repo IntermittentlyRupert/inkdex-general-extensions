@@ -5,22 +5,18 @@ import {
   BasicRateLimiter,
   ContentRating,
   DiscoverSectionType,
-  Form,
   type Chapter,
   type ChapterDetails,
-  type ChapterProviding,
   type DiscoverSection,
   type DiscoverSectionItem,
-  type DiscoverSectionProviding,
-  type Extension,
+  type ExtensionImpl,
+  type Form,
   type Metadata,
   type PagedResults,
   type Request,
   type Response,
   type SearchQuery,
   type SearchResultItem,
-  type SearchResultsProviding,
-  type SettingsFormProviding,
   type SourceManga,
 } from "@paperback/types";
 
@@ -37,27 +33,27 @@ import {
   getSplitImages,
   MangaPlusSettingForm,
 } from "./MangaPlusSettings";
+import type MangaPlusConfig from "./pbconfig";
 
 const BASE_URL = "https://mangaplus.shueisha.co.jp";
 const API_URL = "https://jumpg-webapi.tokyo-cdn.com/api";
 
 const langCode = Language.ENGLISH;
 
-export class MangaPlusExtension
-  implements
-    Extension,
-    SearchResultsProviding,
-    ChapterProviding,
-    SettingsFormProviding,
-    DiscoverSectionProviding
-{
+export class MangaPlusExtension implements ExtensionImpl<typeof MangaPlusConfig> {
   globalRateLimiter = new BasicRateLimiter("rateLimiter", {
     numberOfRequests: 10,
     bufferInterval: 1,
     ignoreImages: true,
   });
 
-  constructor() {}
+  private getSessionToken(): string {
+    const storedToken = Application.getState("sessionToken") as string | undefined;
+    if (storedToken) return storedToken;
+    const sessionToken = crypto.randomUUID();
+    Application.setState(sessionToken, "sessionToken");
+    return sessionToken;
+  }
 
   async initialise(): Promise<void> {
     this.registerInterceptors();
@@ -327,8 +323,9 @@ export class MangaPlusExtension
   async interceptRequest(request: Request): Promise<Request> {
     request.headers = {
       ...request.headers,
-
+      Origin: BASE_URL,
       Referer: `${BASE_URL}/`,
+      "session-token": this.getSessionToken(),
       "user-agent": await Application.getDefaultUserAgent(),
     };
 
