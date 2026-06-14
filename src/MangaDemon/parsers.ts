@@ -6,10 +6,14 @@
 // Responsible for parsing HTML responses from demonicscans.org.
 // Extracts manga details, chapter lists, search results, and chapter page images.
 
-import { type Chapter, type DiscoverSectionItem, type SourceManga } from "@paperback/types";
+import {
+  ContentRating,
+  type Chapter,
+  type DiscoverSectionItem,
+  type SearchResultItem,
+  type SourceManga,
+} from "@paperback/types";
 import { type CheerioAPI } from "cheerio";
-
-import { type SearchResultItem } from "./models";
 
 export class MangaDemonParser {
   /**
@@ -35,6 +39,7 @@ export class MangaDemonParser {
         title,
         imageUrl,
         subtitle: `${views.toLocaleString()} views`,
+        contentRating: ContentRating.EVERYONE, // Site does not provide content rating
       });
     });
     return items;
@@ -65,6 +70,7 @@ export class MangaDemonParser {
         title,
         subtitle: topChapter,
         imageUrl: imageUrl,
+        contentRating: ContentRating.EVERYONE, // Site does not provide content rating
       });
     });
     // Only check for next page if there are items
@@ -93,10 +99,6 @@ export class MangaDemonParser {
       const imageUrl = img.attr("src") || "";
       const rightDiv = li.find(".seach-right");
       const title = rightDiv.find("div").first().text().trim();
-      // The second div inside .seach-right contains the views
-      const viewsDiv = rightDiv.find("div").eq(1);
-      const viewsText = viewsDiv.text().replace(/[^0-9]/g, "");
-      const views = viewsText || "";
       // Use href as mangaId, sanitized
       const href = anchor.attr("href") || "";
       const mangaId = decodeURIComponent(href.replace("/manga/", "").replace(/\/$/, ""));
@@ -105,7 +107,7 @@ export class MangaDemonParser {
           mangaId,
           title,
           imageUrl,
-          views,
+          contentRating: ContentRating.EVERYONE, // Site does not provide content rating
         });
       }
     });
@@ -122,10 +124,6 @@ export class MangaDemonParser {
       const title = anchor.attr("title")?.trim() || "";
       const img = anchor.find("img");
       const imageUrl = img.attr("src") || "";
-      // The views are inside the <div> after the <svg> in the <h1>
-      const viewsDiv = anchor.find("h1 > div");
-      const viewsText = viewsDiv.text().replace(/[^0-9]/g, "");
-      const views = viewsText || "";
       // Use href as mangaId, sanitized
       const href = anchor.attr("href") || "";
       const mangaId = decodeURIComponent(href.replace("/manga/", "").replace(/\/$/, ""));
@@ -134,7 +132,7 @@ export class MangaDemonParser {
           mangaId,
           title,
           imageUrl,
-          views,
+          contentRating: ContentRating.EVERYONE, // Site does not provide content rating
         });
       }
     });
