@@ -13,14 +13,18 @@ import {
 
 import {
   DOMAIN,
-  type ChapterPagesResponse,
   type ChapterListResponse,
+  type ChapterPagesResponse,
+  type ItemInfo,
+  type ItemInfoElements,
   type MangaData,
   type MangaDataResponse,
+  type MangaSection,
+  type MangaSectionItem,
   type PageMetadata,
   type SearchResponse,
 } from "./models";
-import { normalizeId } from "./utils";
+import { generateTagElement } from "./utils";
 
 function parseStringArray(value: string[] | string | null): string[] {
   if (value == null) return [];
@@ -80,10 +84,7 @@ export const parseMangaInfo = (manga: MangaDataResponse, volumes: string[]): Sou
         {
           id: "genres",
           title: "Genres",
-          tags: mangaInfo.genres.map((genre) => ({
-            id: normalizeId(genre),
-            title: genre,
-          })),
+          tags: mangaInfo.genres.map((genre) => generateTagElement(genre)),
         },
       ],
       shareUrl: `${DOMAIN}/manga/${mangaInfo.id}`,
@@ -154,36 +155,83 @@ export type SectionItemType =
   | "featuredCarouselItem";
 
 export const parseSection = (
-  sectionElements: SearchResponse,
+  sectionElements: SearchResponse | MangaSection,
   page: number,
   type: SectionItemType,
 ): PagedResults<DiscoverSectionItem> => {
-  const items = sectionElements.manga_list.map((item): DiscoverSectionItem => {
+  let sectionItems: MangaData[] | MangaSectionItem[] = [];
+  const isMangaData = "manga_list" in sectionElements;
+  if (isMangaData) {
+    sectionItems = sectionElements.manga_list;
+  }
+  if ("items" in sectionElements) {
+    sectionItems = sectionElements.items;
+  }
+
+  const items = sectionItems.map((item): DiscoverSectionItem => {
     const base = {
       mangaId: item.id.toString(),
       title: item.title,
       imageUrl: `${DOMAIN}${item.photo}`,
-      contentRating: getRating(item),
+      contentRating: isMangaData
+        ? getRating(item as MangaData)
+        : item.is_blurworthy
+          ? ContentRating.ADULT
+          : ContentRating.EVERYONE,
     };
+    const ratingItem: ItemInfo = {
+      symbol: "star.fill",
+      text: `${item.avg_rating}`,
+    };
+
+    const status: ItemInfo = {
+      symbol: "book.fill",
+      text: `${item.status}`,
+    };
+
+    let itemInfoElements: ItemInfoElements | undefined = undefined;
+
+    if (item.avg_rating != null && item.status) {
+      itemInfoElements = [ratingItem, status];
+    } else if (item.avg_rating != null) {
+      itemInfoElements = [ratingItem];
+    } else if (item.status) {
+      itemInfoElements = [status];
+    }
     switch (type) {
       case "chapterUpdatesCarouselItem":
         return {
           ...base,
           type,
-          subtitle: `Chapter ${item.chapter_count}`,
+          subtitle: `★ ${item.avg_rating}`,
           chapterId: item.chapter_count.toString(),
           publishDate: getDate(item.last_chapter_date),
         };
       case "featuredCarouselItem":
-        return { ...base, type, supertitle: getArrayAuthor(item) };
+        return {
+          ...base,
+          type,
+          supertitle: isMangaData ? getArrayAuthor(item as MangaData) : `★ ${item.avg_rating}`,
+          summary: isMangaData ? (item as MangaData).description : "",
+          infoItems: itemInfoElements,
+        };
       case "prominentCarouselItem":
-        return { ...base, type, subtitle: getArrayAuthor(item) };
+        return {
+          ...base,
+          type,
+          subtitle: isMangaData ? getArrayAuthor(item as MangaData) : `★ ${item.avg_rating}`,
+        };
       default:
-        return { ...base, type: "simpleCarouselItem", subtitle: getArrayAuthor(item) };
+        return {
+          ...base,
+          type: "simpleCarouselItem",
+          subtitle: isMangaData ? getArrayAuthor(item as MangaData) : `★ ${item.avg_rating}`,
+        };
     }
   });
   return {
     items,
-    metadata: sectionElements.pagination.total_pages > page ? { page: page + 1 } : undefined,
+    metadata:
+      isMangaData && sectionElements.pagination.total_pages > page ? { page: page + 1 } : undefined,
   };
 };

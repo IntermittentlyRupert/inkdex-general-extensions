@@ -3,25 +3,42 @@
 
 import {
   CloudflareError,
+  ContentRating,
   PaperbackInterceptor,
   URL,
+  type DiscoverSectionItem,
+  type PagedResults,
   type Request,
   type Response,
   type SearchQuery,
+  type SearchResultItem,
   type SortingOption,
+  type Tag,
 } from "@paperback/types";
 
 import {
   DOMAIN,
-  type ChapterPagesResponse,
+  RANGE,
+  type ApiRequestConfig,
   type ChapterListResponse,
+  type ChapterPagesResponse,
   type MangaDataResponse,
+  type MangaSection,
   type SearchMetadata,
   type SearchResponse,
   type SearchSuggestionsResponse,
   type Volumes,
 } from "./models";
-import { deNormalizeId, getShowAdultStatus, getSectionContentTypes } from "./utils";
+import {
+  defaultMetadata,
+  deNormalizeId,
+  getDemographicHidden,
+  getFilters,
+  getGenresHidden,
+  getSectionContentTypes,
+  getShowAdultStatus,
+  getThemesHidden,
+} from "./utils";
 
 export class MangaDotInterceptor extends PaperbackInterceptor {
   override async interceptRequest(request: Request): Promise<Request> {
@@ -65,57 +82,150 @@ export class MangaDotApi {
     }
   }
 
-  async getSection(section: string, page: number): Promise<SearchResponse> {
-    const url = new URL(DOMAIN)
-      .addPathComponent("api")
-      .addPathComponent("manga")
-      .addPathComponent("section")
-      .addPathComponent(section.replaceAll("_", "-"))
-      .setQueryItems({
+  private async buildApiRequest<T>(api: ApiRequestConfig): Promise<T> {
+    const url = new URL(DOMAIN);
+    const paths = Array.isArray(api.path) ? api.path : [api.path];
+    paths.forEach((p) => url.addPathComponent(p));
+    if (api.query) {
+      for (const [key, value] of Object.entries(api.query)) {
+        url.setQueryItem(key, value);
+      }
+    }
+    const request: Request = { url: url.toString(), method: "GET" };
+    if (api.headers !== undefined) {
+      request.headers = api.headers;
+    }
+    return this.fetchApi<T>(request);
+  }
+
+  private buildTagSection(tags: Tag[], hiddenIds: string[]): PagedResults<DiscoverSectionItem> {
+    return {
+      items: tags
+        .filter((tag) => !hiddenIds.includes(tag.id))
+        .map(
+          (tag): DiscoverSectionItem => ({
+            type: "genresCarouselItem",
+            searchQuery: {
+              title: "",
+              metadata: defaultMetadata(tag.id),
+            },
+            name: tag.title,
+            contentRating: ContentRating.EVERYONE,
+          }),
+        ),
+    };
+  }
+
+  async getRangeSection(section: string): Promise<PagedResults<DiscoverSectionItem>> {
+    return {
+      items: RANGE.map(
+        (tag): DiscoverSectionItem => ({
+          type: "genresCarouselItem",
+          searchQuery: {
+            title: "",
+            metadata: { range: tag.id, sectionName: section },
+          },
+          name: tag.title,
+          contentRating: ContentRating.EVERYONE,
+        }),
+      ),
+    };
+  }
+
+  async getGenreSection(): Promise<PagedResults<DiscoverSectionItem>> {
+    return this.buildTagSection(getFilters().genre, getGenresHidden());
+  }
+
+  async getDemographicSection(): Promise<PagedResults<DiscoverSectionItem>> {
+    return this.buildTagSection(getFilters().demographic, getDemographicHidden());
+  }
+
+  async getThemesSection(): Promise<PagedResults<DiscoverSectionItem>> {
+    return this.buildTagSection(getFilters().themeAndContent, getThemesHidden());
+  }
+  async getSection(section: string, page: number): Promise<SearchResponse | MangaSection> {
+    if (section === "most_viewed") {
+      return this.getMostViewed(page);
+    }
+    if (section === "latest_updates") {
+      return this.getLatestUpdateSection();
+    }
+    return this.getAllTimesSection(section, page);
+  }
+  async getAllTimesSection(section: string, page: number): Promise<SearchResponse> {
+    const params: ApiRequestConfig = {
+      path: ["api", "manga", "section", section.replaceAll("_", "-")],
+      query: {
         origin: getSectionContentTypes().join(",").replaceAll("&", ","),
-        adult: getShowAdultStatus() ? "both" : "0",
+        adult: getShowAdultStatus(),
         page: page.toString(),
-      });
-    return this.fetchApi<SearchResponse>({ url: url.toString(), method: "GET" });
+      },
+    };
+    return this.buildApiRequest<SearchResponse>(params);
+  }
+
+  getMostViewed(page: number): Promise<SearchResponse> {
+    const params: ApiRequestConfig = {
+      path: ["api", "search"],
+      query: {
+        page: page.toString(),
+        sortBy: "views",
+        sortOrder: "desc",
+        adult: getShowAdultStatus(),
+      },
+    };
+    return this.buildApiRequest<SearchResponse>(params);
+  }
+
+  async getLatestUpdateSection(): Promise<MangaSection> {
+    const params: ApiRequestConfig = {
+      path: ["api", "manga", "section"],
+      query: {
+        id: "latest_updates",
+        origin: getSectionContentTypes().join(",").replaceAll("&", ","),
+        adult: getShowAdultStatus(),
+        limit: "100",
+      },
+    };
+    return this.buildApiRequest<MangaSection>(params);
   }
 
   async getMangaData(mangaId: string) {
-    const url = new URL(DOMAIN)
-      .addPathComponent("api")
-      .addPathComponent("manga")
-      .addPathComponent(mangaId);
-    return this.fetchApi<MangaDataResponse>({ url: url.toString(), method: "GET" });
+    const params: ApiRequestConfig = {
+      path: ["api", "manga", mangaId],
+    };
+    return this.buildApiRequest<MangaDataResponse>(params);
   }
 
   async getChapterList(mangaId: string) {
-    const url = new URL(DOMAIN)
-      .addPathComponent("api")
-      .addPathComponent("manga")
-      .addPathComponent(mangaId)
-      .addPathComponent("chapters")
-      .addPathComponent("list");
-    return this.fetchApi<ChapterListResponse[]>({ url: url.toString(), method: "GET" });
+    const params: ApiRequestConfig = {
+      path: ["api", "manga", mangaId, "chapters", "list"],
+    };
+    return this.buildApiRequest<ChapterListResponse[]>(params);
   }
 
   async getVolumes(mangaId: string) {
-    const url = new URL(DOMAIN)
-      .addPathComponent("api")
-      .addPathComponent("manga")
-      .addPathComponent(mangaId)
-      .addPathComponent("volumes");
-    return this.fetchApi<Volumes[]>({ url: url.toString(), method: "GET" });
+    const params: ApiRequestConfig = {
+      path: ["api", "manga", mangaId, "volumes"],
+    };
+    return this.buildApiRequest<Volumes[]>(params);
   }
 
   async getSearch(query: SearchQuery<SearchMetadata>, page: number, sorting: SortingOption) {
-    const formattedGenres = Object.entries(query.metadata?.genres ?? []).map(([genre, state]) => {
+    const genres = {
+      ...query.metadata?.genres,
+      ...query.metadata?.demographic,
+      ...query.metadata?.more,
+      ...query.metadata?.themes,
+    };
+    const formattedGenres = Object.entries(genres).map(([genre, state]) => {
       const normalized = deNormalizeId(genre);
       return state === "excluded" ? `-${normalized}` : normalized;
     });
     const [sort, order] = sorting.id.split("$");
-    const url = new URL(DOMAIN)
-      .addPathComponent("api")
-      .addPathComponent("search")
-      .setQueryItems({
+    const params: ApiRequestConfig = {
+      path: ["api", "search"],
+      query: {
         search: query.title,
         page: page.toString(),
         genres: formattedGenres.join(","),
@@ -125,48 +235,74 @@ export class MangaDotApi {
         artist: (query.metadata?.artist ?? []).join(","),
         sortBy: sort,
         sortOrder: order ? order : "",
-        adult: query.metadata?.adult === true ? "both" : "0",
-      });
-    return this.fetchApi<SearchResponse>({ url: url.toString(), method: "GET" });
+        adult: query.metadata?.adult ?? getShowAdultStatus(),
+      },
+    };
+    return this.buildApiRequest<SearchResponse>(params);
   }
 
   async getChapterPages(chapterId: string, mangaId: string, upload: string | undefined) {
     const chapPath = upload === "trusted" ? "uploads" : "chapters";
-    const url = new URL(DOMAIN)
-      .addPathComponent("api")
-      .addPathComponent(chapPath)
-      .addPathComponent(chapterId)
-      .addPathComponent("images");
-    return this.fetchApi<ChapterPagesResponse>({
-      url: url.toString(),
-      method: "GET",
+    const params: ApiRequestConfig = {
+      path: ["api", chapPath, chapterId, "images"],
       headers: { referer: `${DOMAIN}/manga/${mangaId}` },
-    });
+    };
+    return this.buildApiRequest<ChapterPagesResponse>(params);
   }
 
   async getFilters() {
-    const url = new URL(DOMAIN)
-      .addPathComponent("api")
-      .addPathComponent("manga")
-      .addPathComponent("genres");
-    return this.fetchApi<string[]>({ url: url.toString(), method: "GET" });
+    const params: ApiRequestConfig = {
+      path: ["api", "manga", "genres"],
+    };
+    return this.buildApiRequest<string[]>(params);
   }
 
   async getAuthor(value: string) {
-    const url = new URL(DOMAIN)
-      .addPathComponent("api")
-      .addPathComponent("manga")
-      .addPathComponent("people-suggest")
-      .setQueryItems({ kind: "author", q: value });
-    return this.fetchApi<SearchSuggestionsResponse>({ url: url.toString(), method: "GET" });
+    const params: ApiRequestConfig = {
+      path: ["api", "manga", "people-suggest"],
+      query: {
+        kind: "author",
+        q: value,
+      },
+    };
+    return this.buildApiRequest<SearchSuggestionsResponse>(params);
   }
 
   async getArtist(value: string) {
-    const url = new URL(DOMAIN)
-      .addPathComponent("api")
-      .addPathComponent("manga")
-      .addPathComponent("people-suggest")
-      .setQueryItems({ kind: "artist", q: value });
-    return this.fetchApi<SearchSuggestionsResponse>({ url: url.toString(), method: "GET" });
+    const params: ApiRequestConfig = {
+      path: ["api", "manga", "people-suggest"],
+      query: {
+        kind: "artist",
+        q: value,
+      },
+    };
+    return this.buildApiRequest<SearchSuggestionsResponse>(params);
+  }
+
+  async MangaSectionRequestToSearchResponse(
+    section: string,
+    range: string,
+  ): Promise<PagedResults<SearchResultItem>> {
+    const params: ApiRequestConfig = {
+      path: ["api", "manga", "section"],
+      query: {
+        id: section,
+        origin: getSectionContentTypes().join(",").replaceAll("&", ","),
+        adult: getShowAdultStatus(),
+        range: range,
+        limit: "100",
+      },
+    };
+    const mangas = await this.buildApiRequest<MangaSection>(params);
+    return {
+      items: mangas.items.map((manga) => ({
+        mangaId: manga.id.toString(),
+        title: manga.title,
+        subtitle: `★ ${manga.avg_rating}`,
+        imageUrl: `${DOMAIN}${manga.photo}`,
+        contentRating: manga.is_blurworthy ? ContentRating.ADULT : ContentRating.EVERYONE,
+      })),
+      metadata: undefined,
+    };
   }
 }

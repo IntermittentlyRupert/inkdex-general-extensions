@@ -9,7 +9,6 @@ import {
   SelectRow,
   SelectSection,
   TriStateSelectRow,
-  ToggleRow,
   type FlowSectionElement,
   type FormItemElement,
   type FormSectionElement,
@@ -19,7 +18,13 @@ import {
 
 import { MangaDot } from "../main";
 import { ORIGIN, STATUS, type SearchMetadata } from "../models";
-import { defaultMetadata, deNormalizeId, getGenres, normalizeId } from "../utils";
+import {
+  defaultMetadata,
+  deNormalizeId,
+  generateTagElement,
+  getFilters,
+  getShowAdultStatus,
+} from "../utils";
 
 class MangaDotAdvancedSearchForm extends AdvancedSearchForm {
   override getSearchQueryMetadata(): SearchMetadata {
@@ -43,9 +48,16 @@ class MangaDotAdvancedSearchForm extends AdvancedSearchForm {
       Section("status", this.getStatusFilter()),
       Section("origin", this.getOriginFilter()),
       Section("adult", [
-        ToggleRow("adultToggle", {
+        SelectRow("adultToggle", {
           title: "Show Adult results",
-          value: this.searchMetadata.adult ?? false,
+          value: this.searchMetadata.adult ?? getShowAdultStatus(),
+          options: [
+            { id: "0", title: "No" },
+            { id: "1", title: "Yes" },
+            { id: "both", title: "Both" },
+          ],
+          minItemCount: 1,
+          maxItemCount: 1,
           onValueChange: Application.Selector(this as MangaDotAdvancedSearchForm, "handleAdult"),
         }),
       ]),
@@ -72,8 +84,41 @@ class MangaDotAdvancedSearchForm extends AdvancedSearchForm {
         title: "Genres",
         layout: "list",
         onValueChange: Application.Selector(this as MangaDotAdvancedSearchForm, "handleGenres"),
-        items: getGenres(),
+        items: getFilters().genre,
         value: this.searchMetadata.genres ?? {},
+        allowEmptySelection: true,
+        allowExclusion: true,
+        isHidden: false,
+      }),
+      TriStateSelectRow("demographic", {
+        title: "Demographic",
+        layout: "list",
+        onValueChange: Application.Selector(
+          this as MangaDotAdvancedSearchForm,
+          "handleDemographic",
+        ),
+        items: getFilters().demographic,
+        value: this.searchMetadata.demographic ?? {},
+        allowEmptySelection: true,
+        allowExclusion: true,
+        isHidden: false,
+      }),
+      TriStateSelectRow("themes", {
+        title: "Themes",
+        layout: "list",
+        onValueChange: Application.Selector(this as MangaDotAdvancedSearchForm, "handleThemes"),
+        items: getFilters().themeAndContent,
+        value: this.searchMetadata.themes ?? {},
+        allowEmptySelection: true,
+        allowExclusion: true,
+        isHidden: false,
+      }),
+      TriStateSelectRow("more", {
+        title: "More",
+        layout: "list",
+        onValueChange: Application.Selector(this as MangaDotAdvancedSearchForm, "handleMore"),
+        items: getFilters().more,
+        value: this.searchMetadata.more ?? {},
         allowEmptySelection: true,
         allowExclusion: true,
         isHidden: false,
@@ -88,7 +133,10 @@ class MangaDotAdvancedSearchForm extends AdvancedSearchForm {
         layout: "list",
         onValueChange: Application.Selector(this as MangaDotAdvancedSearchForm, "handleStatus"),
         items: STATUS,
-        value: this.searchMetadata.status ?? [""],
+        value:
+          this.searchMetadata.status && this.searchMetadata.status.length > 0
+            ? this.searchMetadata.status
+            : [""],
         minItemCount: 1,
         maxItemCount: 1,
         isHidden: false,
@@ -103,7 +151,10 @@ class MangaDotAdvancedSearchForm extends AdvancedSearchForm {
         layout: "list",
         onValueChange: Application.Selector(this as MangaDotAdvancedSearchForm, "handleOrigin"),
         items: ORIGIN,
-        value: this.searchMetadata.origin ?? [""],
+        value:
+          this.searchMetadata.origin && this.searchMetadata.origin.length > 0
+            ? this.searchMetadata.origin
+            : [""],
         minItemCount: 1,
         maxItemCount: ORIGIN.length,
         isHidden: false,
@@ -111,8 +162,20 @@ class MangaDotAdvancedSearchForm extends AdvancedSearchForm {
     ];
   }
 
-  async handleAdult(value: boolean): Promise<void> {
+  async handleAdult(value: string[]): Promise<void> {
     this.searchMetadata.adult = value;
+  }
+
+  async handleDemographic(value: { [id: string]: "included" | "excluded" }): Promise<void> {
+    this.searchMetadata.demographic = value;
+  }
+
+  async handleThemes(value: { [id: string]: "included" | "excluded" }): Promise<void> {
+    this.searchMetadata.themes = value;
+  }
+
+  async handleMore(value: { [id: string]: "included" | "excluded" }): Promise<void> {
+    this.searchMetadata.more = value;
   }
 
   async handleGenres(value: { [id: string]: "included" | "excluded" }): Promise<void> {
@@ -187,10 +250,7 @@ class AuthorFilter extends AdvancedSearchForm {
               id: "authorSearch",
               layout: "list",
               value: this.savedAuthorFiltered ?? [],
-              items: this.authorFiltered.map((elem) => ({
-                id: normalizeId(elem),
-                title: deNormalizeId(elem),
-              })),
+              items: this.authorFiltered.map((elem) => generateTagElement(elem)),
               minItemCount: 0,
               maxItemCount: this.authorFiltered.length,
             }),
@@ -202,10 +262,7 @@ class AuthorFilter extends AdvancedSearchForm {
               id: "selections",
               layout: "list",
               value: this.savedAuthorFiltered ?? [],
-              items: this.savedAuthorFiltered.map((elem) => ({
-                id: normalizeId(elem),
-                title: deNormalizeId(elem),
-              })),
+              items: this.savedAuthorFiltered.map((elem) => generateTagElement(elem)),
               minItemCount: 0,
               maxItemCount: this.savedAuthorFiltered.length,
             }),
@@ -274,10 +331,7 @@ class ArtistFilter extends AdvancedSearchForm {
               id: "artistSearch",
               layout: "list",
               value: this.savedArtistFiltered ?? [],
-              items: this.artistsFiltered.map((elem) => ({
-                id: normalizeId(elem),
-                title: deNormalizeId(elem),
-              })),
+              items: this.artistsFiltered.map((elem) => generateTagElement(elem)),
               minItemCount: 0,
               maxItemCount: this.artistsFiltered.length,
             }),
@@ -289,10 +343,7 @@ class ArtistFilter extends AdvancedSearchForm {
               id: "selections",
               layout: "list",
               value: this.savedArtistFiltered ?? [],
-              items: this.savedArtistFiltered.map((elem) => ({
-                id: normalizeId(elem),
-                title: deNormalizeId(elem),
-              })),
+              items: this.savedArtistFiltered.map((elem) => generateTagElement(elem)),
               minItemCount: 0,
               maxItemCount: this.savedArtistFiltered.length,
             }),
