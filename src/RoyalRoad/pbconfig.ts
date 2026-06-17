@@ -4,9 +4,10 @@
 import { ContentRating, SourceIntents, type ExtensionInfo } from "@paperback/types";
 
 export default {
-  name: "Comix",
-  description: "Extension that pulls content from Comix.to.",
-  version: "1.0.0-alpha.39",
+  name: "RoyalRoad",
+  description:
+    "Extension that pulls web novels from royalroad.com and renders their chapters as readable pages.",
+  version: "1.0.0-alpha.1",
   icon: "icon.png",
   language: "en",
   contentRating: ContentRating.EVERYONE,
@@ -20,8 +21,8 @@ export default {
   badges: [],
   developers: [
     {
-      name: "Catta1997",
-      github: "https://github.com/Catta1997",
+      name: "Inkdex",
+      github: "https://github.com/Inkdex",
     },
   ],
 } satisfies ExtensionInfo;
