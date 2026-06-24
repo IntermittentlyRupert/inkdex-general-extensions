@@ -5,7 +5,7 @@ import type { DiscoverSection, DiscoverSectionItem, PagedResults, Request } from
 import { URL } from "@paperback/types";
 
 import { fetchJSON } from "../../services/network";
-import { getShowAdult } from "../settings-form/main";
+import { getShowAdult } from "../settings-form-providing/main";
 import { DOMAIN } from "../shared/models";
 import type { AtsuHomePageResponse, AtsuInfiniteResponse } from "../shared/models";
 import { buildThumbnailUrl, getContentRating } from "../shared/utils";
@@ -21,9 +21,9 @@ export class DiscoverProvider {
     if (showAdult) url.setQueryItem("adult", "1");
 
     const request: Request = { url: url.toString(), method: "GET" };
-    const json = await fetchJSON<AtsuHomePageResponse>(request);
+    const data = await fetchJSON<AtsuHomePageResponse>(request);
 
-    return parseDiscoverSections(json);
+    return parseDiscoverSections(data);
   }
 
   async getDiscoverSectionItems(
@@ -41,9 +41,9 @@ export class DiscoverProvider {
       if (showAdult) url.setQueryItem("adult", "1");
 
       const request: Request = { url: url.toString(), method: "GET" };
-      const json = await fetchJSON<AtsuHomePageResponse>(request);
+      const data = await fetchJSON<AtsuHomePageResponse>(request);
 
-      const items = parseDiscoverItems(json, section.id);
+      const items = parseDiscoverItems(data, section.id);
       return { items, metadata: undefined };
     }
 
@@ -72,9 +72,9 @@ export class DiscoverProvider {
     if (showAdult) url.setQueryItem("adult", "1");
 
     const request: Request = { url: url.toString(), method: "GET" };
-    const json = await fetchJSON<AtsuInfiniteResponse>(request);
+    const data = await fetchJSON<AtsuInfiniteResponse>(request);
 
-    const items = json.items.map((item) => ({
+    const items = data.items.map((item) => ({
       type: "simpleCarouselItem" as const,
       mangaId: item.id,
       title: item.title,
