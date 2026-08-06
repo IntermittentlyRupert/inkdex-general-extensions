@@ -2,26 +2,48 @@
 /* Copyright © 2026 Inkdex */
 
 export const DOMAIN = "https://atsu.moe";
+export const HOME_PAGE_SIZE = 20;
+export const HOME_SECTION_METADATA_ID = "atsumaru-home-section";
 
-export interface AtsuHomePageResponse {
-  homePage: {
-    sections: AtsuSection[];
-  };
+export type HomeEndpoint =
+  | "bingeWorthy"
+  | "genreSpotlight"
+  | "hiddenGems"
+  | "hotArrivals"
+  | "hotUpdates"
+  | "mostBookmarked"
+  | "mostPolarizing"
+  | "mostTalkedAbout"
+  | "popular"
+  | "recentlyAdded"
+  | "recentlyUpdated"
+  | "rising"
+  | "topRated";
+
+export type HomeTimeframe = "daily" | "weekly" | "monthly" | "all";
+
+export enum AtsuContentRating {
+  Safe = "Safe",
+  Suggestive = "Suggestive",
+  Erotica = "Erotica",
+  Pornographic = "Pornographic",
 }
 
-export interface AtsuSection {
-  key: string;
-  layout: string;
-  title?: string;
-  seeMoreHref?: string;
-  items?: AtsuMangaItem[];
+export enum AtsuMangaType {
+  Manga = "Manga",
+  Manhwa = "Manwha", // API spelling
+  Manhua = "Manhua",
+  OEL = "OEL",
 }
 
 export interface AtsuMangaItem {
   id: string;
   image: string;
+  isAdult: boolean;
+  smallImage?: string;
+  mediumImage?: string;
   title: string;
-  type: string;
+  type: AtsuMangaType;
 }
 
 export interface AtsuInfiniteResponse {
@@ -42,13 +64,16 @@ export interface AtsuMangaDetails {
   poster: {
     id: string;
     image: string;
+    smallImage?: string;
+    mediumImage?: string;
   };
   title: string;
-  type: string;
+  type: AtsuMangaType;
   otherNames: string[];
   synopsis: string;
   status: string;
   totalChapterCount: number;
+  isAdult: boolean;
 }
 
 export interface AtsuTag {
@@ -97,6 +122,8 @@ export interface AtsuSearchDocument {
   posterSmall?: string;
   posterMedium?: string;
   type: string;
+  isAdult: boolean;
+  mbContentRating?: AtsuContentRating;
 }
 
 export interface AtsuSearchHit {
