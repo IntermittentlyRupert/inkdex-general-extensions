@@ -2,6 +2,7 @@
 /* Copyright © 2026 Inkdex */
 
 export const DOMAIN = "https://atsu.moe";
+export const DOMAIN_CDN = "https://cdn.atsu.moe";
 export const HOME_PAGE_SIZE = 20;
 export const HOME_SECTION_METADATA_ID = "atsumaru-home-section";
 
@@ -29,12 +30,19 @@ export enum AtsuContentRating {
   Pornographic = "Pornographic",
 }
 
-export enum AtsuMangaType {
+export enum AtsuComicType {
   Manga = "Manga",
   Manhwa = "Manwha", // API spelling
   Manhua = "Manhua",
   OEL = "OEL",
 }
+
+export enum AtsuMedium {
+  Comic = "Comic",
+  Novel = "Novel",
+}
+
+export type AtsuContentType = AtsuComicType | AtsuMedium.Novel;
 
 export interface AtsuMangaItem {
   id: string;
@@ -43,7 +51,9 @@ export interface AtsuMangaItem {
   smallImage?: string;
   mediumImage?: string;
   title: string;
-  type: AtsuMangaType;
+  type: AtsuComicType;
+  medium: AtsuMedium;
+  mbContentRating?: AtsuContentRating | null;
 }
 
 export interface AtsuInfiniteResponse {
@@ -68,7 +78,9 @@ export interface AtsuMangaDetails {
     mediumImage?: string;
   };
   title: string;
-  type: AtsuMangaType;
+  type: AtsuComicType;
+  medium: AtsuMedium;
+  mbContentRating?: AtsuContentRating | null;
   otherNames: string[];
   synopsis: string;
   status: string;
@@ -105,6 +117,18 @@ export interface AtsuReadChapterResponse {
   };
 }
 
+export interface AtsuReadNovelChapterResponse {
+  readNovelChapter: {
+    id: string;
+    title: string;
+    number: number;
+    scanlationMangaId: string;
+    paragraphs: string[];
+    wordCount: number;
+    paragraphComments: Record<string, number>;
+  };
+}
+
 export interface AtsuPage {
   id: string;
   image: string;
@@ -122,8 +146,9 @@ export interface AtsuSearchDocument {
   posterSmall?: string;
   posterMedium?: string;
   type: string;
+  medium: AtsuMedium;
   isAdult: boolean;
-  mbContentRating?: AtsuContentRating;
+  mbContentRating?: AtsuContentRating | null;
 }
 
 export interface AtsuSearchHit {
