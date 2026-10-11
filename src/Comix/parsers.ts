@@ -117,7 +117,7 @@ export function parseChapterDetails(
   pages: ApiResponse<ChapterPages>,
 ): ChapterDetails {
   const { baseUrl, items } = pages.result.pages;
-  const base = baseUrl.replace(/\/$/, "");
+  const base = (baseUrl ?? "").replace(/\/$/, "");
   return {
     id: chapterId,
     mangaId: pages.result.mangaId.toString(),
